@@ -8,8 +8,10 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-TELEGRAM_TOKEN = ""
-OPENAI_API_KEY = ""   
+import os
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_GROUP_ID = -1001234567890           
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 ADMIN_USER_PSEUDO = "@idf_runningshop"    
