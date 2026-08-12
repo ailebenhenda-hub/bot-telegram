@@ -9,13 +9,18 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # Variables d'environnement
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# La clé est récupérée en toute sécurité depuis les variables d'environnement de Railway
+GROQ_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_GROUP_ID = -5313705184
 
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 ADMIN_USER_PSEUDO = "@idf_runningshop"    
 
-client_openai = OpenAI(api_key=OPENAI_API_KEY)
+# Configuration du client OpenAI pointant vers l'API gratuite de Groq
+client_groq = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
 
 CATALOGUE_TEXTE = """
 Voici la liste des stocks 100% AUTHENTIQUES chez IDF Running // V.I.P :
@@ -81,10 +86,10 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logging.error(f"Erreur envoi admin : {e}")
 
-    # 2. Réponse de l'IA
+    # 2. Réponse de l'IA (via Groq et Llama 3)
     try:
-        response = client_openai.chat.completions.create(
-            model="gpt-4o-mini",
+        response = client_groq.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -92,6 +97,7 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         bot_reply = response.choices[0].message.content
     except Exception as e:
+        logging.error(f"Erreur Groq : {e}")
         bot_reply = "Désolé, petit souci technique. L'équipe arrive en DM !"
 
     await message.reply_text(bot_reply, disable_web_page_preview=True)
