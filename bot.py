@@ -79,17 +79,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     welcome_text = (
         f"👋 Salut {user.first_name} !\n\n"
-        "⚡ **Bienvenue chez IDF Running // V.I.P** 🏃‍♂️💨\n\n"
-        f"💎 **Le shop élite.** Ici, on le sait : les pépites ne sont pas faites pour courir, mais pour **flex** proprement. Zéro fake, zéro douille : garantie authenticité à vie (ou remboursé x2). Retrouve tous les prix et visuels sur notre [canal officiel]({CANAL_TELEGRAM_URL}).\n\n"
-        "🔥 **Avantages exclusifs & Bons Plans :**\n"
-        "• **Promo de groupe :** -5€ par article dès que tu en prends plusieurs !\n"
-        f"• **Parrainage VIP :** 2 personnes parrainées qui rejoignent le canal = **-10€ de réduction** (envoie les preuves des abonnés en DM sur ton compte perso {ADMIN_USER_PSEUDO}) !\n"
-        "• **Expédition Éclair :** Colis envoyé le jour même si validé avant 14h.\n"
-        "📸 **Le Flex :** Envoie-nous tes meilleures photos porté une fois l'outfit reçu !\n\n"
-        "📦 Remise en main propre (Gare du Nord / IDF), Vinted, ou envois directs (Mondial Relay / Colissimo).\n\n"
+        "Bienvenue chez IDF Running // V.I.P 🏃‍♂️💨\n\n"
+        "Le shop élite. Ici, on le sait : les pépites ne sont pas faites pour courir, mais pour flex proprement. Zéro fake, zéro douille : garantie authenticité à vie (ou remboursé x2). Retrouve tous les prix et visuels sur notre canal officiel : " + CANAL_TELEGRAM_URL + "\n\n"
+        "Avantages exclusifs & Bons Plans :\n"
+        "• Promo de groupe : -5€ par article dès que tu en prends plusieurs !\n"
+        f"• Parrainage VIP : 2 personnes parrainées qui rejoignent le canal = -10€ de réduction (envoie les preuves des abonnés en DM sur ton compte perso {ADMIN_USER_PSEUDO}) !\n"
+        "• Expédition Éclair : Colis envoyé le jour même si validé avant 14h.\n"
+        "Le Flex : Envoie-nous tes meilleures photos porté une fois l'outfit reçu !\n\n"
+        "Remise en main propre (Gare du Nord / IDF), Vinted, ou envois directs (Mondial Relay / Colissimo).\n\n"
         "Balance ta taille ou le modèle recherché !"
     )
-    await update.message.reply_text(welcome_text, parse_mode="Markdown", disable_web_page_preview=True)
+    await update.message.reply_text(welcome_text, parse_mode=None, disable_web_page_preview=True)
 
 async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
@@ -101,10 +101,10 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_message = message.text
 
     alert_client = (
-        f"💬 **Client @{user.username if user.username else user.first_name}** (`{user.id}`):\n"
+        f"💬 Client @{user.username if user.username else user.first_name} (`{user.id}`):\n"
         f"\"{user_message}\""
     )
-    await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_client, parse_mode="Markdown")
+    await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_client, parse_mode=None)
 
     try:
         response = client_openai.chat.completions.create(
@@ -118,10 +118,10 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         bot_reply = "Yo, petit souci technique mais l'équipe a bien reçu ton message et revient vers toi direct !"
 
-    await message.reply_text(bot_reply, parse_mode="Markdown", disable_web_page_preview=True)
+    await message.reply_text(bot_reply, parse_mode=None, disable_web_page_preview=True)
 
-    alert_bot = f"🤖 *Réponse du bot :*\n\"{bot_reply}\""
-    await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_bot, parse_mode="Markdown")
+    alert_bot = f"🤖 Réponse du bot :\n\"{bot_reply}\""
+    await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_bot, parse_mode=None)
 
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
