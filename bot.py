@@ -10,7 +10,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # Variables d'environnement
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ADMIN_GROUP_ID = -5313705184 
+ADMIN_GROUP_ID = -5313705184
 
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 ADMIN_USER_PSEUDO = "@idf_runningshop"    
@@ -74,7 +74,7 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = message.from_user
     user_message = message.text
 
-    # 1. Envoi au groupe Admin (si le bot y est, ça passera)
+    # 1. Envoi au groupe Admin
     try:
         alert_text = f"💬 @{user.username if user.username else user.first_name} a demandé : \"{user_message}\""
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_text)
