@@ -12,7 +12,7 @@ import os
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ADMIN_GROUP_ID = -1001234567890           
+ADMIN_GROUP_ID = -1001234567890             
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 ADMIN_USER_PSEUDO = "@idf_runningshop"    
 
@@ -80,10 +80,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         f"👋 Salut {user.first_name} !\n\n"
         "⚡ **Bienvenue chez IDF Running // V.I.P** 🏃‍♂️💨\n\n"
-        "💎 **Le shop élite.** Ici, on le sait : les pépites ne sont pas faites pour courir, mais pour **flex** proprement. Zéro fake, zéro douille : garantie authenticité à vie (ou remboursé x2). Retrouve tous les prix et visuels sur notre [canal officiel]({CANAL_TELEGRAM_URL}).\n\n"
+        f"💎 **Le shop élite.** Ici, on le sait : les pépites ne sont pas faites pour courir, mais pour **flex** proprement. Zéro fake, zéro douille : garantie authenticité à vie (ou remboursé x2). Retrouve tous les prix et visuels sur notre [canal officiel]({CANAL_TELEGRAM_URL}).\n\n"
         "🔥 **Avantages exclusifs & Bons Plans :**\n"
         "• **Promo de groupe :** -5€ par article dès que tu en prends plusieurs !\n"
-        "• **Parrainage VIP :** 2 personnes parrainées qui rejoignent le canal = **-10€ de réduction** (envoie les preuves des abonnés en DM sur ton compte perso " + ADMIN_USER_PSEUDO + ") !\n"
+        f"• **Parrainage VIP :** 2 personnes parrainées qui rejoignent le canal = **-10€ de réduction** (envoie les preuves des abonnés en DM sur ton compte perso {ADMIN_USER_PSEUDO}) !\n"
         "• **Expédition Éclair :** Colis envoyé le jour même si validé avant 14h.\n"
         "📸 **Le Flex :** Envoie-nous tes meilleures photos porté une fois l'outfit reçu !\n\n"
         "📦 Remise en main propre (Gare du Nord / IDF), Vinted, ou envois directs (Mondial Relay / Colissimo).\n\n"
