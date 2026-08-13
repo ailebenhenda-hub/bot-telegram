@@ -14,13 +14,14 @@ ADMIN_GROUP_ID = -5313705184
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 ADMIN_USER_PSEUDO = "@idf_runningshop"
 VINTED_PROFILE_URL = "https://www.vinted.fr/member/idf_runningshop"
+GROUPE_AVIS_URL = "https://t.me/+q2HRbe-dBydlZWZk" # Lien de ton groupe d'avis
 
 client_groq = OpenAI(
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1"
 )
 
-# CATALOGUE COMPLET (Prix, tailles, états)
+# CATALOGUE COMPLET
 CATALOGUE_TEXTE = """
 Voici les pépites 100% AUTHENTIQUES chez IDF Running // V.I.P :
 - T-shirt Nike Trail (Gris clair / Bleu glacier) | Taille: M | État: Excellent | 40€
@@ -35,28 +36,27 @@ Voici les pépites 100% AUTHENTIQUES chez IDF Running // V.I.P :
 - Pantalon Nike Trail (Noir) | Taille: S | État: 8/10 (petite égratignure genou) | 60€
 """
 
-# Le cerveau du bot : IA programmée pour la vente humaine, street et naturelle
+# Le cerveau du bot mis à jour avec le lien des avis pour rassurance
 SYSTEM_PROMPT = (
     f"Tu es l'assistant virtuel de 'IDF Running // V.I.P'.\n"
     f"Voici le catalogue dispo :\n{CATALOGUE_TEXTE}\n\n"
+    f"Lien des avis clients à donner en cas de doute ou d'hésitation : {GROUPE_AVIS_URL}\n\n"
     "Règles strictes :\n"
-    "1. LÉGIT CHECK VARIÉ : Si on doute de l'authenticité, ne dis pas toujours la même phrase. Varie avec des tournures comme : 'Zéro doute frérot, 100% legit, garantie à vie ou remboursé x2', 'Tu peux y aller les yeux fermés, que du vrai propre pour porter ça en léger', ou 'Pas de fake ici, tout est clean'.\n"
-    "2. URGENCE & ANTI-ENERVEMENT : Si le client s'impatiente ou si tu gères l'attente, dis-lui : 'Le boss est en train de préparer les colis du jour, il arrive en DM très vite. En attendant, tu cherches plutôt du haut ou du bas ? J'ai peut-être une autre pépite qui pourrait t'intéresser...'\n"
-    "3. FILTRE DE TAILLE : S'il donne sa taille (ex: M), liste UNIQUEMENT les articles disponibles dans cette taille.\n"
-    "4. CROSS-SELLING / LOTS : S'il s'intéresse à un article, propose-lui subtilement une autre pièce assortie en lui rappelant que ça lui fera une réduction de -5€ sur le total global.\n"
-    "5. PRODUIT MYSTÈRE : S'il ne sait pas quoi choisir, utilise cette vibe : 'Tu as du mal à te décider ? Donne ton budget ou ton style, et je te sors l'article qui te régalera.'\n"
-    "6. CLOSING : S'il est chaud pour acheter un article, dis-lui de choisir son mode de livraison/paiement via les boutons interactifs ou propose-lui directement les options (Vinted, Main propre, Colissimo).\n"
-    "7. TON : Street, naturel, vendeur pro, sans utiliser 'le flex' (utilise plutôt 'pour porter ça en léger', 'propre', 'lourd')."
+    "1. RASSURANCE ANTI-DOUTE : Si le client doute de l'authenticité, a peur des arnaques ou hésite à commander, envoie-lui toujours le lien du groupe d'avis ({GROUPE_AVIS_URL}) en lui disant qu'il peut voir tous les retours des anciens acheteurs.\n"
+    "2. LÉGIT CHECK VARIÉ : Varie les tournures : 'Zéro doute frérot, 100% legit', 'Tu peux y aller les yeux fermés, que du vrai propre pour porter ça en léger'.\n"
+    "3. URGENCE & ATTENTE : Si le client s'impatiente, dis-lui : 'Le boss prépare les colis, il arrive en DM. Tu cherches plutôt haut ou bas ?'\n"
+    "4. FILTRE DE TAILLE : S'il donne sa taille, liste UNIQUEMENT les articles dispo dans cette taille.\n"
+    "5. CROSS-SELLING / LOTS : S'il s'intéresse à un article, propose une autre pièce en rappelant la réduction de -5€.\n"
+    "6. TON : Street, naturel, vendeur pro, sans 'le flex' (utilise 'propre', 'lourd')."
 )
 
 def get_main_keyboard():
     keyboard = [
         [KeyboardButton("📦 Voir le Stock"), KeyboardButton("🔥 Nouveautés / Infos")],
-        [KeyboardButton("🎁 Parrainage VIP"), KeyboardButton("❓ FAQ & Livraison")]
+        [KeyboardButton("⭐ Voir les Avis Clients"), KeyboardButton("❓ FAQ & Livraison")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# Clavier interactif (Boutons sous le message pour choisir le mode d'achat)
 def get_checkout_inline_keyboard():
     keyboard = [
         [InlineKeyboardButton("🛍️ Passer par Vinted", callback_data="pay_vinted")],
@@ -69,7 +69,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         f"👋 Salut {update.effective_user.first_name} !\n\n"
         "Bienvenue chez IDF Running // V.I.P 🏃‍♂️💨\n\n"
-        "Zéro fake, zéro douille. Utilise les boutons ci-dessous ou balance direct ta taille !"
+        "Zéro fake, zéro douille. Regarde les avis si tu as des doutes, ou balance ta taille !"
     )
     await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard())
 
@@ -78,12 +78,12 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = update.message.text.lower()
     user = update.effective_user
 
-    # FAQ Instantanée / Mots-clés
+    # FAQ et boutons du clavier permanent
     if any(w in text for w in ["livraison", "expedie", "envoi"]):
-        await update.message.reply_text("📦 Expédition rapide et soignée, ou dispo en main propre en Île-de-France !", reply_markup=get_main_keyboard())
+        await update.message.reply_text(f"📦 Expédition rapide et soignée ! Tu peux checker les retours ici : {GROUPE_AVIS_URL}", reply_markup=get_main_keyboard())
         return
     elif any(w in text for w in ["paiement", "payer", "carte", "rib"]):
-        await update.message.reply_text("💳 Tu peux régler par Vinted, virement sur mon RIB Revolut, ou en espèces lors d'une remise en main propre.", reply_markup=get_main_keyboard())
+        await update.message.reply_text("💳 Tu peux régler par Vinted, virement sur mon RIB Revolut, ou en espèces en main propre.", reply_markup=get_main_keyboard())
         return
     elif text == "📦 voir le stock":
         await update.message.reply_text(f"📦 **Catalogue dispo :**\n\n{CATALOGUE_TEXTE}", reply_markup=get_main_keyboard())
@@ -91,20 +91,20 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif text == "🔥 nouveautés / infos":
         await update.message.reply_text(f"🚀 Visuels & drops ici : {CANAL_TELEGRAM_URL}", reply_markup=get_main_keyboard())
         return
-    elif text == "🎁 parrainage vip":
-        await update.message.reply_text(f"🎁 2 parrainages = -10€ ! Preuves en DM sur {ADMIN_USER_PSEUDO}.", reply_markup=get_main_keyboard())
+    elif text == "⭐ voir les avis clients":
+        await update.message.reply_text(f"⭐ Viens jeter un œil aux retours de tous nos clients validés ici : {GROUPE_AVIS_URL}", reply_markup=get_main_keyboard())
         return
     elif text == "❓ faq & livraison":
-        await update.message.reply_text("❓ **FAQ :**\n• 100% réel (garantie x2)\n• Options : Vinted, Colissimo ou Main propre\n• Lot : -5€ sur le total !", reply_markup=get_main_keyboard())
+        await update.message.reply_text(f"❓ **FAQ :**\n• 100% réel (garantie)\n• Regarde les avis des clients : {GROUPE_AVIS_URL}\n• Lot : -5€ sur le total !", reply_markup=get_main_keyboard())
         return
 
-    # Si le client veut acheter ou commande un article, on lui propose les options de paiement cliquables
+    # Si le client veut acheter
     if any(w in text for w in ["je prends", "je veux", "acheter", "commande", "interesse"]):
-        buy_prompt = "Carré ! Choisis ton mode de livraison et de paiement préféré ci-dessous :"
+        buy_prompt = f"Carré ! Pour que tu commandes en toute confiance (tu peux voir nos retours ici : {GROUPE_AVIS_URL}), choisis ton mode de livraison et de paiement ci-dessous :"
         await update.message.reply_text(buy_prompt, reply_markup=get_checkout_inline_keyboard())
         return
 
-    # Envoi de la question à l'IA Groq
+    # Envoi à l'IA Groq
     try:
         response = client_groq.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -115,16 +115,13 @@ async def handle_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         bot_reply = response.choices[0].message.content
 
-        # Tracking pour le groupe admin
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"💬 [Suivi Client] @{user.username or user.first_name} : {update.message.text}")
-        
         await update.message.reply_text(bot_reply, reply_markup=get_main_keyboard())
 
     except Exception as e:
         logging.error(f"Erreur technique : {e}")
-        await update.message.reply_text("Désolé, petit souci technique. Le boss arrive en DM !", reply_markup=get_main_keyboard())
+        await update.message.reply_text(f"Désolé, petit souci technique. Regarde nos avis ici en attendant : {GROUPE_AVIS_URL}", reply_markup=get_main_keyboard())
 
-# Gestion des clics sur les boutons de paiement (Vinted, Main propre, Colissimo)
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -132,32 +129,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "pay_vinted":
         text_vinted = (
-            f"🛍️ **Option Vinted sélectionnée :**\n\n"
-            f"Rends-toi directement sur mon profil Vinted sécurisé : {VINTED_PROFILE_URL}\n\n"
-            f"Envoie-moi un message directement là-bas sur l'article concerné pour qu'on valide la transaction en toute sécurité !"
+            f"🛍️ **Option Vinted (100% sécurisé) :**\n\n"
+            f"Rends-toi sur mon profil Vinted : {VINTED_PROFILE_URL}\n"
+            f"(Et si tu veux voir les retours des autres acheteurs : {GROUPE_AVIS_URL})"
         )
         await query.message.reply_text(text_vinted)
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🔔 @{user.username or user.first_name} a choisi l'option **Vinted** !")
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🔔 @{user.username or user.first_name} a choisi **Vinted** !")
 
     elif query.data == "pay_hand":
         text_hand = (
             f"🤝 **Option Remise en main propre (IDF) :**\n\n"
-            f"Impec ! Écris-moi tes disponibilités (jours/horaires) et ta ville/secteur en Île-de-France pour qu'on s'organise un rdv rapide."
+            f"Impec ! Écris-moi tes dispos et ta ville en Île-de-France.\n"
+            f"(Tu peux aussi checker nos avis ici : {GROUPE_AVIS_URL})"
         )
         await query.message.reply_text(text_hand)
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🚨 @{user.username or user.first_name} veut une **Remise en main propre** ! Viens voir ses dispos.")
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🚨 @{user.username or user.first_name} veut une **Remise en main propre** !")
 
     elif query.data == "pay_colissimo":
         text_colissimo = (
-            f"📦 **Option Colissimo / Virement Bancaire :**\n\n"
-            f"Voici mon RIB Revolut pour effectuer le virement (envoie-moi la capture d'écran du paiement en DM une fois fait) :\n\n"
-            f"🏦 **Banque :** Revolut Bank UAB\n"
-            f"📋 **IBAN :** `FR76 2823 3000 0156 5721 3968 757`\n"
-            f"🔤 **BIC :** `REVOFRP2`\n\n"
-            f"N'oublie pas de m'envoyer ton nom, ton prénom et ton adresse complète de livraison par message !"
+            f"📦 **Option Colissimo / Virement :**\n\n"
+            f"Si tu as le moindre doute, va jeter un œil à nos retours clients ici : {GROUPE_AVIS_URL}\n\n"
+            f"Voici mon RIB Revolut pour le virement :\n"
+            f"🏦 **Revolut** | 📋 **IBAN :** `FR76 2823 3000 0156 5721 3968 757` | 🔤 **BIC :** `REVOFRP2`"
         )
         await query.message.reply_text(text_colissimo)
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🚨 @{user.username or user.first_name} a choisi **Colissimo (RIB envoyé)** ! Prépare-toi à valider son paiement.")
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🚨 @{user.username or user.first_name} a choisi **Colissimo (RIB envoyé)** !")
 
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
