@@ -10,12 +10,24 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # --- TES PARAMÈTRES ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("OPENAI_API_KEY") 
-ADMIN_GROUP_ID = -5313705184 # ID de ton groupe admin actuel
+ADMIN_GROUP_ID = -5313705184 
 CANAL_TELEGRAM_URL = "https://t.me/idfrunningvip"
 GROUPE_AVIS_URL = "https://t.me/+q2HRbe-dBydlZWZk"
 VINTED_PROFILE_URL = "https://www.vinted.fr/member/idf_runningshop"
+# Ton RIB direct pour automatiser le Colissimo
+INFOS_RIB = "🏦 **Revolut** | 📋 **IBAN :** `FR76 2823 3000 0156 5721 3968 757` | 🔤 **BIC :** `REVOFRP2`"
 
 client_groq = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+
+# --- PROMPT CORRIGÉ (Stricto sensu : que des vêtements / pas de chaussures) ---
+SYSTEM_PROMPT = (
+    "Tu es l'assistant virtuel de la boutique 'IDF Running // V.I.P'. "
+    "Tu vends UNIQUEMENT des vêtements et textiles de running et streetwear haut de gamme prisés en IDF "
+    "(ex: ensembles Nike Tech Fleece, pantalons Phenom Elite, Aeroswift, vestes Windrunner, t-shirts Dri-Fit). "
+    "ATTENTION : Ne parle JAMAIS de chaussures, de baskets ou de paires, tu ne vends que des VÊTEMENTS. "
+    "Sois court, pro, street et naturel ('frérot', 'propre', 'lourd'). "
+    f"Si le client doute de l'authenticité ou a peur des arnaques, donne-lui toujours le lien des avis : {GROUPE_AVIS_URL}"
+)
 
 # --- CATALOGUE DES ARTICLES ---
 CATALOGUE_ARTICLES = [
@@ -49,14 +61,14 @@ def get_checkout_inline_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛍️ Vinted (100% sécurisé)", callback_data="pay_vinted")],
         [InlineKeyboardButton("🤝 Remise en main propre (IDF)", callback_data="pay_hand")],
-        [InlineKeyboardButton("📦 Envoi Colissimo", callback_data="pay_colissimo")]
+        [InlineKeyboardButton("📦 Envoi Colissimo (RIB direct)", callback_data="pay_colissimo")]
     ])
 
 # --- GESTION DES COMMANDES ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         f"👋 Salut {update.effective_user.first_name} ! Bienvenue chez **IDF Running // V.I.P** 🏃‍♂️💨\n\n"
-        "Ici, tu trouveras les meilleures pièces en exclu. Que souhaites-tu faire ?"
+        "Ici, tu trouveras les meilleures pièces textiles en exclu. Que souhaites-tu faire ?"
     )
     await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
@@ -66,14 +78,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     
     if query.data == "pay_vinted":
-        await query.message.reply_text(f"🛍️ Rends-toi sur mon profil Vinted pour commander : {VINTED_PROFILE_URL}")
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🛍️ @{user.username or user.first_name} a choisi de payer via **Vinted** !")
+        await query.message.reply_text(f"🛍️ Rends-toi sur mon profil Vinted pour sécuriser ton achat : {VINTED_PROFILE_URL}")
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🛍️ @{user.username or user.first_name} a choisi **Vinted** !")
     elif query.data == "pay_hand":
-        await query.message.reply_text("🤝 Impec ! Dis-moi ta ville et tes disponibilités en IDF pour organiser ça.")
+        await query.message.reply_text("🤝 Impec ! Dis-moi ta ville et tes disponibilités en IDF pour organiser la remise en main propre.")
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"🤝 @{user.username or user.first_name} veut une **Remise en main propre** !")
     elif query.data == "pay_colissimo":
-        await query.message.reply_text("📦 Pour un envoi, envoie-moi ton adresse complète et ton mode de paiement préféré en MP.")
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"📦 @{user.username or user.first_name} veut un **Envoi Colissimo** !")
+        # Le bot donne directement le RIB pour aller vite sans attente
+        text_colissimo = (
+            f"📦 **Option Colissimo :**\n\n"
+            f"Pour valider ton envoi, effectue le virement sur mon RIB ci-dessous, puis envoie-moi ta capture de paiement et ton adresse ici même !\n\n"
+            f"{INFOS_RIB}\n\n"
+            f"*(Besoin d'être rassuré ? Check les avis : {GROUPE_AVIS_URL})*"
+        )
+        await query.message.reply_text(text_colissimo, parse_mode='Markdown')
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=f"📦 @{user.username or user.first_name} a demandé le **RIB Colissimo** !")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
@@ -106,13 +125,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("❌ Article non trouvé. Vérifie le numéro dans le catalogue !")
 
-    # Discussion avec l'IA pour tout le reste
+    # Discussion avec l'IA (filtrée sur les vêtements)
     else:
         try:
             response = client_groq.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
-                    {"role": "system", "content": f"Tu es l'assistant de la boutique IDF Running. Réponds de façon courte, pro et naturelle. Si le client doute ou pose des questions sur l'authenticité, donne toujours le lien des avis : {GROUPE_AVIS_URL}"},
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": update.message.text}
                 ]
             )
