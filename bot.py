@@ -2,7 +2,14 @@ import os
 import logging
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
@@ -10,13 +17,13 @@ ADMIN_GROUP_ID = -3956183527
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
 
-# Base de données en mémoire (remplaçable par SQLite si besoin)
+# Base de données en mémoire
 referrals = {}  # {user_id: referrer_id}
 user_join_dates = {}  # {user_id: datetime}
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# Catalogue numéroté extrait des images
+# Catalogue numéroté
 CATALOG = {
     "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": "60 €"},
     "2": {"name": "Pantalon Nike Aeroswift", "taille": "Non précisée", "etat": "Excellent état", "prix": "75 €"},
@@ -62,7 +69,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
 
-    # Gestion du lien de parrainage (/start <referrer_id>)
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
         if referrer_id != user_id and user_id not in referrals:
@@ -79,7 +85,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Gestion des boutons
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -117,7 +122,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Gestion des messages texte et sélection par #
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id == ADMIN_GROUP_ID:
         return
@@ -125,20 +129,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
 
-    # Traitement des commandes d'articles via #1, #2...
     if text.startswith("#") and text[1:].isdigit():
         item_id = text[1:]
         if item_id in CATALOG:
             item = CATALOG[item_id]
             
-            # Vérification parrainage < 20 jours
             has_valid_ref = False
             referrer_id = referrals.get(user.id)
             if referrer_id and user.id in user_join_dates:
                 if datetime.now() - user_join_dates[user.id] <= timedelta(days=20):
                     has_valid_ref = True
 
-            # Message au client
             confirm_text = (
                 f"✅ Tu as sélectionné l'article **#{item_id} : {item['name']}**\n"
                 f"• Prix : **{item['prix']}**\n\n"
@@ -148,7 +149,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(confirm_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-            # Alerte envoyée au groupe ADMIN
             admin_alert = (
                 f"🚨 **NOUVELLE INTERACTION ARTICLE**\n"
                 f"• Client : {user.first_name} (@{user.username or 'pas_de_username'})\n"
@@ -161,7 +161,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_alert, parse_mode="Markdown")
             return
 
-    # Message générique
     reply = f"Pour réserver un article, tape le numéro avec un hashtag (ex: `#1`). Sinon contacte directement @{SELLER_USERNAME} !"
     await update.message.reply_text(reply, reply_markup=get_main_keyboard())
 
