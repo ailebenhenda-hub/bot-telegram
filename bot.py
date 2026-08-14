@@ -13,7 +13,8 @@ from telegram.ext import (
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-ADMIN_GROUP_ID = -3956183527
+# Conversion explicite en int pour éviter les erreurs de type
+ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-3956183527"))
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
 
@@ -69,7 +70,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
 
-    # Gestion du lien de parrainage (/start <referrer_id>)
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
         if referrer_id != user_id and user_id not in referrals:
@@ -77,55 +77,54 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_join_dates[user_id] = datetime.now()
 
     welcome_msg = (
-        f"👋 Bienvenue **{user_name}** sur **IDF Running Shop** !\n\n"
+        f"👋 Bienvenue {user_name} sur IDF Running Shop !\n\n"
         "Boutique indépendante streetwear & vêtements running pour jeunes. 🔥\n"
-        "*(Aucune chaussure ni accessoire — vêtements uniquement)*\n\n"
+        "(Aucune chaussure ni accessoire — vêtements uniquement)\n\n"
         "• Envoi rapide Colissimo ou remise en main propre (IDF)\n"
         "• Paiements : Liquide, Vinted, Snapchat, Revolut\n\n"
-        "Envoie directement le numéro d'un article (ex: `#1`, `#4`) pour commander !"
+        "Envoie directement le numéro d'un article (ex: #1, #4) pour commander !"
     )
-    await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard())
 
-# Gestion des clics sur les boutons du menu
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     if query.data == "show_catalog":
-        text = "🔥 **STOCK ACTUEL (Sape Running / Streetwear)** 🔥\n\n"
+        text = "🔥 STOCK ACTUEL (Sape Running / Streetwear) 🔥\n\n"
         for item_id, data in CATALOG.items():
-            text += f"**#{item_id}** - {data['name']}\n"
-            text += f"   • Taille : {data['taille']} | État : {data['etat']} | **{data['prix']}**\n\n"
-        text += "👉 Pour réserver, envoie `#` suivi du numéro (ex: `#1`)."
-        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+            text += f"#{item_id} - {data['name']}\n"
+            text += f"   • Taille : {data['taille']} | État : {data['etat']} | {data['prix']}\n\n"
+        text += "👉 Pour réserver, envoie # suivi du numéro (ex: #1)."
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data == "show_referral":
         bot_info = await context.bot.get_me()
         ref_link = f"https://t.me/{bot_info.username}?start={query.from_user.id}"
         text = (
-            "🎁 **PROGRAMME DE PARRAINAGE**\n\n"
-            f"Partage ton lien à tes potes :\n`{ref_link}`\n\n"
-            "📌 **Règle :** Si ton filleul passe commande dans les **20 jours** suivant son arrivée, "
-            "tu reçois **5 € de réduction** sur ta prochaine commande !"
+            "🎁 PROGRAMME DE PARRAINAGE\n\n"
+            f"Partage ton lien à tes potes :\n{ref_link}\n\n"
+            "📌 Règle : Si ton filleul passe commande dans les 20 jours suivant son arrivée, "
+            "tu reçois 5 € de réduction sur ta prochaine commande !"
         )
-        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data == "show_info":
         text = (
-            "🚚 **LIVRAISONS & MOYENS DE PAIEMENT**\n\n"
-            "📍 **Remise en main propre :**\n"
+            "🚚 LIVRAISONS & MOYENS DE PAIEMENT\n\n"
+            "📍 Remise en main propre :\n"
             "• Basé dans le 93, livraison possible dans les gares d'Île-de-France (frais selon la distance).\n"
             "• Paiement : Liquide uniquement lors de la remise.\n\n"
-            "📦 **Envoi Colissimo / Vinted :**\n"
+            "📦 Envoi Colissimo / Vinted :\n"
             "• Départ des colis avant 14h pour toute commande Telegram.\n"
-            "• Pour Colissimo : Ajouter **6 €** de frais de port au prix de l'article.\n"
+            "• Pour Colissimo : Ajouter 6 € de frais de port au prix de l'article.\n"
             f"• Paiement Colissimo direct via Revolut : {REVOLUT_LINK}\n"
             "• Également disponible sur Vinted & Snapchat."
         )
-        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
-# Gestion des messages texte et commande par hashtag (#1, #2...)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Évite de boucler si un message est envoyé dans le groupe admin
     if update.effective_chat.id == ADMIN_GROUP_ID:
         return
 
@@ -137,7 +136,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if item_id in CATALOG:
             item = CATALOG[item_id]
             
-            # Vérification du parrainage (< 20 jours)
             has_valid_ref = False
             referrer_id = referrals.get(user.id)
             if referrer_id and user.id in user_join_dates:
@@ -145,28 +143,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     has_valid_ref = True
 
             confirm_text = (
-                f"✅ Tu as sélectionné l'article **#{item_id} : {item['name']}**\n"
-                f"• Prix : **{item['prix']}**\n\n"
+                f"✅ Tu as sélectionné l'article #{item_id} : {item['name']}\n"
+                f"• Prix : {item['prix']}\n\n"
                 "Pour finaliser la commande :\n"
                 f"1. Clique sur 'Contacter le vendeur' (@{SELLER_USERNAME})\n"
                 f"2. Pour un paiement direct et envoi Colissimo (+6 €), utilise Revolut : {REVOLUT_LINK}"
             )
-            await update.message.reply_text(confirm_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+            await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
 
-            # Alerte au groupe Admin
+            # Construction du message d'alerte en texte brut
+            username_str = f"@{user.username}" if user.username else "Aucun pseudo"
             admin_alert = (
-                f"🚨 **NOUVELLE INTERACTION ARTICLE**\n"
-                f"• Client : {user.first_name} (@{user.username or 'pas_de_username'})\n"
-                f"• ID Client : `{user.id}`\n"
+                "🚨 NOUVELLE INTERACTION ARTICLE\n\n"
+                f"• Client : {user.first_name} ({username_str})\n"
+                f"• ID Client : {user.id}\n"
                 f"• Article : #{item_id} - {item['name']} ({item['prix']})\n"
             )
             if has_valid_ref:
-                admin_alert += f"🎁 **Alerte Parrainage :** Arrivé via parrain `{referrer_id}` depuis moins de 20j. Accorder 5€ au parrain si commande validée !"
+                admin_alert += f"\n🎁 Alerte Parrainage : Arrivé via parrain {referrer_id} depuis moins de 20j."
 
-            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_alert, parse_mode="Markdown")
+            # Envoi vers le groupe sans parse_mode pour éviter les rejets Telegram
+            try:
+                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_alert)
+            except Exception as e:
+                # Affiche l'erreur exacte dans les logs Railway si Telegram bloque l'envoi
+                logging.error(f"ERREUR D'ENVOI AU GROUPE ADMIN ({ADMIN_GROUP_ID}) : {e}")
+
             return
 
-    reply = f"Pour réserver un article, tape le numéro avec un hashtag (ex: `#1`). Sinon contacte directement @{SELLER_USERNAME} !"
+    reply = f"Pour réserver un article, tape le numéro avec un hashtag (ex: #1). Sinon contacte directement @{SELLER_USERNAME} !"
     await update.message.reply_text(reply, reply_markup=get_main_keyboard())
 
 def main():
