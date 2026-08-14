@@ -11,8 +11,6 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
@@ -23,11 +21,11 @@ except ValueError:
     ADMIN_GROUP_ID = RAW_ADMIN_ID
 
 SELLER_USERNAME = "idf_runningshop"
-REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
+REVOLUT_BASE = "https://revolut.me/shvppeur_corp"
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# --- 1. BASE DE DONNÉES SQLITE ---
+# --- BASE DE DONNÉES SQLITE ---
 def init_db():
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -40,13 +38,14 @@ def init_db():
         )
     """)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sales (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE IF NOT EXISTS wishlist (
             user_id INTEGER,
-            item_id TEXT,
-            item_name TEXT,
-            price REAL,
-            date TEXT
+            item_id TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS vip_list (
+            user_id INTEGER PRIMARY KEY
         )
     """)
     conn.commit()
@@ -73,16 +72,36 @@ def add_points(user_id, points):
     conn.commit()
     conn.close()
 
-def set_ban(user_id, status):
+def add_wishlist(user_id, item_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET banned = ? WHERE user_id = ?", (status, user_id))
+    cursor.execute("INSERT INTO wishlist (user_id, item_id) VALUES (?, ?)", (user_id, item_id))
     conn.commit()
     conn.close()
 
-referrals = {}
-user_join_dates = {}
-reservations = {}  # {item_id: {"user_id": int, "expires": datetime}}
+# --- GESTION VIP ---
+def is_vip(user_id):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM vip_list WHERE user_id = ?", (user_id,))
+    res = cursor.fetchone()
+    conn.close()
+    return res is not None
+
+def toggle_vip(user_id):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    if is_vip(user_id):
+        cursor.execute("DELETE FROM vip_list WHERE user_id = ?", (user_id,))
+        status = False
+    else:
+        cursor.execute("INSERT INTO vip_list (user_id) VALUES (?)", (user_id,))
+        status = True
+    conn.commit()
+    conn.close()
+    return status
+
+reservations = {}
 known_users = set()
 
 CATALOG = {
@@ -104,19 +123,24 @@ def clean_reservations():
     for k in expired:
         del reservations[k]
 
-def get_main_keyboard():
+def get_main_keyboard(user_id):
+    vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
+    
     keyboard = [
         [
             InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
             InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size")
         ],
         [
-            InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral"),
+            InlineKeyboardButton("📏 Guide des Tailles", callback_data="size_guide"),
             InlineKeyboardButton("⭐ Fidélité", callback_data="show_points")
         ],
         [
+            InlineKeyboardButton(vip_btn_text, callback_data="toggle_vip_status")
+        ],
+        [
             InlineKeyboardButton("🚚 Livraisons & Offres", callback_data="show_info"),
-            InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_LINK)
+            InlineKeyboardButton("💳 Revolut Direct", url=REVOLUT_BASE)
         ],
         [
             InlineKeyboardButton("🛒 Vinted", url="https://www.vinted.fr/member/idf_runningshop"),
@@ -150,9 +174,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Remise de -5€ / article supplémentaire dès 70 € d'achat.\n\n"
         "Envoie le numéro d'un article (ex: #1) pour réserver (durée : 15 min) !"
     )
-    await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard())
+    await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
 
-# --- CALLBACKS & FIDÉLITÉ (200 PTS = -10€) ---
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -174,7 +197,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 status = f"• Taille : {data['taille']} | État : {data['etat']} | {data['prix']} €"
             text += f"#{item_id} - {data['name']}\n   {status}\n\n"
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+        
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
+
+    elif query.data == "toggle_vip_status":
+        status = toggle_vip(user_id)
+        msg_text = "✅ Tu es inscrit à la liste VIP ! Tu recevras une notification prioritaire au prochain arrivage." if status else "❌ Tu es désinscrit des notifications de drops."
+        await query.answer(msg_text, show_alert=True)
+        await query.edit_message_reply_markup(reply_markup=get_main_keyboard(user_id))
 
     elif query.data == "filter_size":
         kb = InlineKeyboardMarkup([
@@ -183,6 +213,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 Retour", callback_data="show_catalog")]
         ])
         await query.edit_message_text("Sélectionne ta taille :", reply_markup=kb)
+
+    elif query.data == "size_guide":
+        text = (
+            "📏 **GUIDE DES TAILLES IDF RUNNING SHOP**\n\n"
+            "• **Nike Aeroswift / Running Pro :** Coupe très ajustée / près du corps. Si tu hésites, prends une taille au-dessus.\n"
+            "• **Nike Phenom Elite :** Coupe fuselée standard (serrée aux chevilles, confortable en haut).\n"
+            "• **Tech Fleece / Aviateur :** Taille normalement (Prends ta taille habituelle).\n\n"
+            "💬 Un doute ? Envoie ta taille/poids en MP à @idf_runningshop !"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
+
+    elif query.data.startswith("alert_"):
+        item_id = query.data.split("_")[1]
+        add_wishlist(user_id, item_id)
+        await query.answer("🔔 Tu recevras un MP si cet article ou cette taille revient en stock !", show_alert=True)
 
     elif query.data.startswith("size_"):
         size = query.data.split("_")[1]
@@ -194,7 +239,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 found = True
         if not found:
             text += "Aucun article disponible pour cette taille."
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
 
     elif query.data == "show_points":
         pts = u_data["points"]
@@ -205,7 +250,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if pts >= 200:
             text += "\n🎉 Tu as atteint 200 pts ! Envoie un MP au vendeur pour utiliser tes -10 € !"
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
 
     elif query.data == "show_info":
         text = (
@@ -215,13 +260,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Dès 170 € d'achat total : Livraison Colissimo 100% GRATUITE !\n\n"
             "📍 Remise en main propre (93 / Gares IDF) ou Colissimo (+6 € sauf si >170 €)."
         )
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
 
     elif query.data.startswith("claim_"):
         new_text = query.message.text + f"\n\n✅ Pris en charge par {admin_name}"
         await query.edit_message_text(text=new_text, reply_markup=None)
 
-    # Validation du paiement avec attribution exacte du montant en points
     elif query.data.startswith("confirm_pay_"):
         parts = query.data.split("_")
         target_id = int(parts[2])
@@ -236,7 +280,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         new_text += f"\n\n✅ PAIEMENT VALIDÉ PAR {admin_name} (+{int(price)} pts)"
         await query.edit_message_caption(caption=new_text, reply_markup=None)
 
-    # Refus du paiement
     elif query.data.startswith("refuse_pay_"):
         parts = query.data.split("_")
         target_id = int(parts[2])
@@ -260,11 +303,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u_data["banned"]:
         return
 
-    # Gestion de la photo de paiement
     if update.message.photo:
         photo = update.message.photo[-1].file_id
         
-        # Chercher s'il y a une réservation en cours pour connaître le montant exact
         item_price = 0
         for item_id, res_data in reservations.items():
             if res_data["user_id"] == user.id:
@@ -306,22 +347,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "expires": datetime.now() + timedelta(minutes=15)
             }
 
+            total_price = item['prix'] + 6 if item['prix'] < 170 else item['prix']
+            revolut_link_custom = f"{REVOLUT_BASE}/{total_price}"
+
+            kb_pay = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"💳 Payer {total_price} € sur Revolut (Port incl.)", url=revolut_link_custom)],
+                [InlineKeyboardButton("📲 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")]
+            ])
+
             confirm_text = (
-                f"✅ Article #{item_id} ({item['name']}) bloqué pour toi pendant 15 minutes !\n"
-                f"• Prix : {item['prix']} €\n\n"
-                f"Envoie ton reçu Revolut ici en photo ou contacte @{SELLER_USERNAME} pour finaliser."
+                f"✅ Article #{item_id} ({item['name']}) bloqué pour toi pendant 15 minutes !\n\n"
+                f"• Prix article : {item['prix']} €\n"
+                f"• Livraison Colissimo : {6 if item['prix'] < 170 else 0} €\n"
+                f"💰 **TOTAL À PAYER : {total_price} €**\n\n"
+                f"Clique ci-dessous pour payer sur Revolut puis envoie la photo du reçu ici !"
             )
-            await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
+            await update.message.reply_text(confirm_text, reply_markup=kb_pay, parse_mode="Markdown")
 
             claim_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⏳ Prise en charge", callback_data=f"claim_{item_id}")]])
             await context.bot.send_message(
                 chat_id=ADMIN_GROUP_ID,
-                text=f"🚨 NOUVELLE RÉSERVATION (15 min)\nClient : {user.first_name} (@{user.username})\nArticle : #{item_id} - {item['name']} ({item['prix']} €)",
+                text=f"🚨 NOUVELLE RÉSERVATION (15 min)\nClient : {user.first_name} (@{user.username})\nArticle : #{item_id} - {item['name']} ({total_price} €)",
                 reply_markup=claim_kb
             )
             return
 
-    await update.message.reply_text(f"Tape le numéro d'un article (ex: #1) ou contacte @{SELLER_USERNAME}.", reply_markup=get_main_keyboard())
+    await update.message.reply_text(f"Tape le numéro d'un article (ex: #1) ou contacte @{SELLER_USERNAME}.", reply_markup=get_main_keyboard(user.id))
 
 # --- COMMANDES ADMIN ---
 async def cmd_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -338,7 +389,23 @@ async def cmd_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args and context.args[0] in CATALOG:
         item_id = context.args[0]
         CATALOG[item_id]["available"] = True
-        await update.message.reply_text(f"✅ Article #{item_id} ({CATALOG[item_id]['name']}) remis EN STOCK.")
+        
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM wishlist WHERE item_id = ?", (item_id,))
+        users_to_notify = cursor.fetchall()
+        conn.close()
+
+        for u in users_to_notify:
+            try:
+                await context.bot.send_message(
+                    chat_id=u[0], 
+                    text=f"🔔 **RESTOCK !** L'article #{item_id} ({CATALOG[item_id]['name']}) est de nouveau disponible !"
+                )
+            except Exception:
+                continue
+
+        await update.message.reply_text(f"✅ Article #{item_id} remis EN STOCK (+ Clients alertés).")
 
 async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
@@ -357,7 +424,31 @@ async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
     await update.message.reply_text(f"🚀 Annonce envoyée à {count} client(s).")
 
-# --- GÉNÉRATION DE FACTURE PDF RÉELLE ---
+# COMMANDE SPÉCIALE ENVOI UNIQUEMENT AUX VIP DROPS
+async def cmd_drop_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    message = " ".join(context.args)
+    if not message:
+        await update.message.reply_text("Utilisation : `/dropVIP Votre message d'arrivage`", parse_mode="Markdown")
+        return
+    
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM vip_list")
+    vip_users = cursor.fetchall()
+    conn.close()
+
+    count = 0
+    broadcast_text = f"🚨 **DROP VIP EXCLUSIF**\n\n{message}"
+    for u in vip_users:
+        try:
+            await context.bot.send_message(chat_id=u[0], text=broadcast_text, parse_mode="Markdown")
+            count += 1
+        except Exception:
+            continue
+    await update.message.reply_text(f"🔥 Notification VIP Drop envoyée à {count} membres VIP !")
+
 async def cmd_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
@@ -367,35 +458,43 @@ async def cmd_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
         article_name = context.args[1]
         montant = context.args[2]
 
-        pdf_path = f"facture_{client_name}.pdf"
-        c = canvas.Canvas(pdf_path, pagesize=letter)
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(200, 750, "IDF RUNNING SHOP")
-        
-        c.setFont("Helvetica", 12)
-        c.drawString(50, 700, f"Facture N° : {datetime.now().strftime('%Y%m%d%H%M')}")
-        c.drawString(50, 680, f"Date : {datetime.now().strftime('%d/%m/%Y')}")
-        c.drawString(50, 660, f"Client : {client_name}")
-        
-        c.drawString(50, 610, "--------------------------------------------------------")
-        c.drawString(50, 590, f"Article : {article_name}")
-        c.drawString(50, 570, f"Montant Total : {montant} €")
-        c.drawString(50, 550, "Statut : PAIEMENT VALIDÉ")
-        c.drawString(50, 530, "--------------------------------------------------------")
-        
-        c.setFont("Helvetica-Oblique", 10)
-        c.drawString(50, 480, "Merci pour votre achat chez IDF Running Shop !")
-        c.save()
-
-        await context.bot.send_document(
-            chat_id=ADMIN_GROUP_ID,
-            document=open(pdf_path, "rb"),
-            caption=f"📄 Facture PDF générée pour {client_name}"
+        facture_text = (
+            "🧾 **FACTURE OFFICIELLE - IDF RUNNING SHOP**\n"
+            "----------------------------------------\n"
+            f"📅 **Date :** {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+            f"👤 **Client :** {client_name}\n"
+            f"📦 **Article :** {article_name}\n"
+            f"💰 **Montant :** {montant} €\n"
+            "----------------------------------------\n"
+            "✅ **Statut :** PAIEMENT VALIDÉ\n"
+            "🙏 Merci pour votre achat chez IDF Running Shop !"
         )
-        if os.path.exists(pdf_path):
-            os.remove(pdf_path)
+        await update.message.reply_text(facture_text, parse_mode="Markdown")
     else:
         await update.message.reply_text("Utilisation : `/facture NomClient NomArticle Montant`\nExemple : `/facture Lucas PantalonTrail 60`", parse_mode="Markdown")
+
+async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if len(context.args) >= 2:
+        target_id = int(context.args[0])
+        tracking_num = context.args[1]
+        
+        tracking_link = f"https://www.laposte.fr/outils/suivre-vos-envois?code={tracking_num}"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚚 Suivre mon colis La Poste", url=tracking_link)]])
+        
+        msg = (
+            "📦 **SUIVI DE TON COLIS COLISSIMO**\n\n"
+            f"Ton numéro de suivi : `{tracking_num}`\n\n"
+            "Clique sur le bouton ci-dessous pour suivre l'acheminement en direct :"
+        )
+        try:
+            await context.bot.send_message(chat_id=target_id, text=msg, reply_markup=kb, parse_mode="Markdown")
+            await update.message.reply_text(f"✅ Numéro de suivi envoyé au client ID `{target_id}`.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Impossible d'envoyer le MP : {e}")
+    else:
+        await update.message.reply_text("Utilisation : `/suivi ID_CLIENT NUMERO_COLISSIMO`", parse_mode="Markdown")
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -404,7 +503,9 @@ def main():
     app.add_handler(CommandHandler("vendu", cmd_vendu))
     app.add_handler(CommandHandler("resto", cmd_resto))
     app.add_handler(CommandHandler("annonce", cmd_annonce))
+    app.add_handler(CommandHandler("dropVIP", cmd_drop_vip))
     app.add_handler(CommandHandler("facture", cmd_facture))
+    app.add_handler(CommandHandler("suivi", cmd_suivi))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
