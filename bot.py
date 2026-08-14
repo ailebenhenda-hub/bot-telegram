@@ -107,7 +107,7 @@ known_users = set()
 CATALOG = {
     "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": 60, "available": True},
     "2": {"name": "Pantalon Nike Aeroswift", "taille": "M", "etat": "Excellent état", "prix": 75, "available": True},
-    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
+    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "S", "etat": "Excellent état", "prix": 90, "available": True},
     "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": 60, "available": True},
     "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
     "6": {"name": "Tee-Shirt Nike Trail", "taille": "S", "etat": "Excellent état", "prix": 40, "available": True},
