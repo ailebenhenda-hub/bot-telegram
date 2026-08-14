@@ -52,7 +52,6 @@ def init_db():
             user_id INTEGER PRIMARY KEY
         )
     """)
-    # Ajout de la table stats (Idée 3)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS stats (
             id INTEGER PRIMARY KEY,
@@ -77,8 +76,7 @@ def get_user(user_id, username=""):
     res = cursor.fetchone()
     if not res:
         cursor.execute(
-            "INSERT INTO users (user_id, username, points, banned) VALUES (?, ?,"
-            " 0, 0)",
+            "INSERT INTO users (user_id, username, points, banned) VALUES (?, ?, 0, 0)",
             (user_id, username),
         )
         conn.commit()
@@ -220,11 +218,10 @@ CATALOG = {
 }
 
 
-# --- TÂCHE DE RELANCE AUTOMATIQUE (Idée 2) ---
+# --- TÂCHE DE RELANCE AUTOMATIQUE ---
 async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
     for item_id, res in list(reservations.items()):
-        # Avertissement à 10 minutes (il reste 5 min avant expiration des 15 min)
         if not res.get("warned_5min", False) and now >= res["expires"] - timedelta(minutes=5):
             res["warned_5min"] = True
             try:
@@ -235,7 +232,6 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
         
-        # Expiration totale à 15 minutes
         elif now >= res["expires"]:
             del reservations[item_id]
             try:
@@ -402,12 +398,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "size_guide":
         text = (
             "📏 **GUIDE DES TAILLES IDF RUNNING SHOP**\n\n"
-            "• **Nike Aeroswift / Running Pro :** Coupe très ajustée / près du"
-            " corps. Si tu hésites, prends une taille au-dessus.\n"
-            "• **Nike Phenom Elite :** Coupe fuselée standard (serrée aux"
-            " chevilles, confortable en haut).\n"
-            "• **Tech Fleece / Aviateur :** Taille normalement (Prends ta"
-            " taille habituelle).\n\n"
+            "• **Nike Aeroswift / Running Pro :** Coupe très ajustée / près du corps. Si tu hésites, prends une taille au-dessus.\n"
+            "• **Nike Phenom Elite :** Coupe fuselée standard (serrée aux chevilles, confortable en haut).\n"
+            "• **Tech Fleece / Aviateur :** Taille normalement (Prends ta taille habituelle).\n\n"
             "💬 Un doute ? Envoie ta taille/poids en MP à @idf_runningshop !"
         )
         await query.edit_message_text(
@@ -420,8 +413,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item_id = query.data.split("_")[1]
         add_wishlist(user_id, item_id)
         await query.answer(
-            "🔔 Tu recevras un MP si cet article ou cette taille revient en"
-            " stock !",
+            "🔔 Tu recevras un MP si cet article ou cette taille revient en stock !",
             show_alert=True,
         )
 
@@ -463,11 +455,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             "🚚 OFFRES & LIVRAISON\n\n"
             "🔥 RÈGLES DE RÉDUCTIONS :\n"
-            "• Dès 70 € d'achat total : -5 € appliqués sur chaque article"
-            " supplémentaire !\n"
+            "• Dès 70 € d'achat total : -5 € appliqués sur chaque article supplémentaire !\n"
             "• Dès 170 € d'achat total : Livraison Colissimo 100% GRATUITE !\n\n"
-            "📍 Remise en main propre (93 / Gares IDF) ou Colissimo (+6 € sauf"
-            " si >170 €)."
+            "📍 Remise en main propre (93 / Gares IDF) ou Colissimo (+6 € sauf si >170 €)."
         )
         await query.edit_message_text(
             text=text, reply_markup=get_main_keyboard(user_id)
@@ -484,7 +474,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         add_points(target_id, int(price))
         
-        # Mise à jour des statistiques (Idée 3)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute("UPDATE stats SET total_sales = total_sales + 1, revenue = revenue + ? WHERE id = 1", (price,))
@@ -597,8 +586,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 and reservations[item_id]["user_id"] != user.id
             ):
                 await update.message.reply_text(
-                    "⏳ Cet article est en cours de réservation par un autre"
-                    " client (15 min)."
+                    "⏳ Cet article est en cours de réservation par un autre client (15 min)."
                 )
                 return
 
@@ -627,13 +615,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
 
             confirm_text = (
-                f"✅ Article #{item_id} ({item['name']}) bloqué pour toi pendant"
-                " 15 minutes !\n\n"
+                f"✅ Article #{item_id} ({item['name']}) bloqué pour toi pendant 15 minutes !\n\n"
                 f"• Prix article : {item['prix']} €\n"
                 f"• Livraison Colissimo : {6 if item['prix'] < 170 else 0} €\n"
                 f"💰 **TOTAL À PAYER : {total_price} €**\n\n"
-                "Clique ci-dessous pour payer sur Revolut puis envoie la photo"
-                " du reçu ici !"
+                "Clique ci-dessous pour payer sur Revolut puis envoie la photo du reçu ici !"
             )
             await update.message.reply_text(
                 confirm_text, reply_markup=kb_pay, parse_mode="Markdown"
@@ -669,8 +655,7 @@ async def cmd_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item_id = context.args[0]
         CATALOG[item_id]["available"] = False
         await update.message.reply_text(
-            f"❌ Article #{item_id} ({CATALOG[item_id]['name']}) marqué comme"
-            " VENDU."
+            f"❌ Article #{item_id} ({CATALOG[item_id]['name']}) marqué comme VENDU."
         )
 
 
@@ -695,8 +680,7 @@ async def cmd_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=u[0],
                     text=(
                         f"🔔 **RESTOCK !** L'article #{item_id}"
-                        f" ({CATALOG[item_id]['name']}) est de nouveau"
-                        " disponible !"
+                        f" ({CATALOG[item_id]['name']}) est de nouveau disponible !"
                     ),
                 )
             except Exception:
@@ -786,8 +770,7 @@ async def cmd_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(facture_text, parse_mode="Markdown")
     else:
         await update.message.reply_text(
-            "Utilisation : `/facture NomClient NomArticle Montant`\nExemple :"
-            " `/facture Lucas PantalonTrail 60`",
+            "Utilisation : `/facture NomClient NomArticle Montant`\nExemple : `/facture Lucas PantalonTrail 60`",
             parse_mode="Markdown",
         )
 
@@ -809,8 +792,7 @@ async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = (
             "📦 **SUIVI DE TON COLIS COLISSIMO**\n\n"
             f"Ton numéro de suivi : `{tracking_num}`\n\n"
-            "Clique sur le bouton ci-dessous pour suivre l'acheminement en direct"
-            " :"
+            "Clique sur le bouton ci-dessous pour suivre l'acheminement en direct :"
         )
         try:
             await context.bot.send_message(
@@ -841,8 +823,7 @@ async def cmd_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(context.args[0])
         u_data = get_user(target_id)
         await update.message.reply_text(
-            f"⭐ Le client ID `{target_id}` possède **{u_data['points']}"
-            " points**.",
+            f"⭐ Le client ID `{target_id}` possède **{u_data['points']} points**.",
             parse_mode="Markdown",
         )
     elif len(context.args) == 2:
@@ -851,20 +832,16 @@ async def cmd_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         add_points(target_id, pts_delta)
         u_data = get_user(target_id)
         await update.message.reply_text(
-            f"✅ Points mis à jour pour `{target_id}`. Nouveau solde :"
-            f" **{u_data['points']} pts**.",
+            f"✅ Points mis à jour pour `{target_id}`. Nouveau solde : **{u_data['points']} pts**.",
             parse_mode="Markdown",
         )
     else:
         await update.message.reply_text(
-            "Utilisation :\n• Consulter : `/points ID_CLIENT`\n• Modifier :"
-            " `/points ID_CLIENT NOMBRE` (ex: `/points 12345 50` ou `/points"
-            " 12345 -10`)",
+            "Utilisation :\n• Consulter : `/points ID_CLIENT`\n• Modifier : `/points ID_CLIENT NOMBRE`",
             parse_mode="Markdown",
         )
 
 
-# --- NOUVELLE COMMANDE STATS (Idée 3) ---
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
@@ -922,9 +899,9 @@ async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Intégration du JobQueue pour la relance automatique (Idée 2)
     job_queue = app.job_queue
-    job_queue.run_repeating(check_reservations_job, interval=60, first=10)
+    if job_queue:
+        job_queue.run_repeating(check_reservations_job, interval=60, first=10)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("vendu", cmd_vendu))
@@ -934,7 +911,7 @@ def main():
     app.add_handler(CommandHandler("facture", cmd_facture))
     app.add_handler(CommandHandler("suivi", cmd_suivi))
     app.add_handler(CommandHandler("points", cmd_points))
-    app.add_handler(CommandHandler("stats", cmd_stats))  # Ajout handler stats
+    app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("ban", cmd_ban))
     app.add_handler(CommandHandler("unban", cmd_unban))
     app.add_handler(CallbackQueryHandler(handle_callback))
