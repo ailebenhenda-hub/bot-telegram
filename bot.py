@@ -72,6 +72,13 @@ def add_points(user_id, points):
     conn.commit()
     conn.close()
 
+def set_ban_status(user_id, banned_status):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET banned = ? WHERE user_id = ?", (banned_status, user_id))
+    conn.commit()
+    conn.close()
+
 def add_wishlist(user_id, item_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -107,7 +114,7 @@ known_users = set()
 CATALOG = {
     "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": 60, "available": True},
     "2": {"name": "Pantalon Nike Aeroswift", "taille": "M", "etat": "Excellent état", "prix": 75, "available": True},
-    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "S", "etat": "Excellent état", "prix": 90, "available": True},
+    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
     "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": 60, "available": True},
     "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
     "6": {"name": "Tee-Shirt Nike Trail", "taille": "S", "etat": "Excellent état", "prix": 40, "available": True},
@@ -424,7 +431,6 @@ async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
     await update.message.reply_text(f"🚀 Annonce envoyée à {count} client(s).")
 
-# COMMANDE SPÉCIALE ENVOI UNIQUEMENT AUX VIP DROPS
 async def cmd_drop_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
@@ -496,6 +502,46 @@ async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Utilisation : `/suivi ID_CLIENT NUMERO_COLISSIMO`", parse_mode="Markdown")
 
+# --- NOUVELLES COMMANDES ADMIN ---
+async def cmd_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    
+    if len(context.args) == 1:
+        target_id = int(context.args[0])
+        u_data = get_user(target_id)
+        await update.message.reply_text(f"⭐ Le client ID `{target_id}` possède **{u_data['points']} points**.", parse_mode="Markdown")
+    elif len(context.args) == 2:
+        target_id = int(context.args[0])
+        pts_delta = int(context.args[1])
+        add_points(target_id, pts_delta)
+        u_data = get_user(target_id)
+        await update.message.reply_text(f"✅ Points mis à jour pour `{target_id}`. Nouveau solde : **{u_data['points']} pts**.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("Utilisation :\n• Consulter : `/points ID_CLIENT`\n• Modifier : `/points ID_CLIENT NOMBRE` (ex: `/points 12345 50` ou `/points 12345 -10`)", parse_mode="Markdown")
+
+async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if context.args:
+        target_id = int(context.args[0])
+        get_user(target_id)
+        set_ban_status(target_id, 1)
+        await update.message.reply_text(f"🚫 L'utilisateur `{target_id}` a été **BANNI**.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("Utilisation : `/ban ID_CLIENT`", parse_mode="Markdown")
+
+async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if context.args:
+        target_id = int(context.args[0])
+        get_user(target_id)
+        set_ban_status(target_id, 0)
+        await update.message.reply_text(f"✅ L'utilisateur `{target_id}` a été **DÉBANNI**.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("Utilisation : `/unban ID_CLIENT`", parse_mode="Markdown")
+
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
@@ -506,6 +552,9 @@ def main():
     app.add_handler(CommandHandler("dropVIP", cmd_drop_vip))
     app.add_handler(CommandHandler("facture", cmd_facture))
     app.add_handler(CommandHandler("suivi", cmd_suivi))
+    app.add_handler(CommandHandler("points", cmd_points))
+    app.add_handler(CommandHandler("ban", cmd_ban))
+    app.add_handler(CommandHandler("unban", cmd_unban))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
