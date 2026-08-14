@@ -74,23 +74,28 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (MIS À JOUR - STYLE QUOTIDIEN / STREETWEAR) ---
+# --- IA GROQ (INVENTAIRE RÉEL & STRICT) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
-        "Tu es l'assistant IA de 'IDF Running // V.I.P'. "
-        "RÈGLE ABSOLUE : Tu ne vends QUE des vêtements de style urbain, streetwear et de tous les jours (lifestyle/quotidien). "
-        "Ce n'est PAS pour faire du sport, de la course ou aller sur des pistes, c'est pour s'habiller au quotidien avec du style. "
-        "Tu proposes notamment des pièces tendances : ensembles Tech Fleece, tenues Nike Aeroswift, Nike Phenom Elite, vestes Windrunner, Under Armour hybride ColdGear, Nike Trail, sweats, hoodies, cargos, etc., portés pour la mode et le chill. "
-        "Interdit formellement de parler de pistes, de course, de run, d'entraînement ou de performance sportive. "
-        "Tu aides les clients pour leurs choix de tailles, les infos sur les envois Colissimo, et les paiements via Revolut.me/shvppeur_corp. "
-        "Réponds de manière amicale, concise, urbaine et professionnelle."
+        "Tu es l'assistant virtuel de la boutique 'IDF Running // V.I.P'. "
+        "ATTENTION : Le nom contient 'Running' mais CE NE SONT PAS DES VÊTEMENTS DE SPORT. Ce sont des habits streetwear / lifestyle pour s'habiller tous les jours avec du style. "
+        "INTERDICTION ABSOLUE de parler de sport, de course, de run, d'entraînement ou de performance. "
+        "VOICI TON INVENTAIRE EXACT ET EXCLUSIF (tu ne vends QUE ça) :\n"
+        "1. Pantalon Nike Trail (ex: Taille S, 60 €)\n"
+        "2. Sweat Nike Tech Fleece (ex: Noir classique, Taille S, 70 €)\n"
+        "3. Pantalon Nike Phenom Elite (Gris ou Noir, Tailles S/L, 80€ à 90 €)\n"
+        "4. Pantalon Nike Aeroswift (Noir, 75 €)\n"
+        "5. Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n"
+        "Si on te demande ce que tu as en stock, liste uniquement ces articles précis avec leurs prix. "
+        "Aide aussi pour les tailles, les envois Colissimo, et le paiement Revolut (https://revolut.me/shvppeur_corp). "
+        "Sois direct, ultra-clair et parle comme un vendeur streetwear."
     )
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-            temperature=0.7, max_tokens=150
+            temperature=0.3, max_tokens=200
         )
         await update.message.reply_text(completion.choices[0].message.content)
     except Exception as e:
@@ -240,7 +245,7 @@ async def ask_for_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_blacklisted(query.from_user.id):
         await query.message.reply_text("⛔ Accès refusé.")
         return ConversationHandler.END
-    await query.message.reply_text("📝 **Détaille ta commande** (ex: Tenue Aeroswift + Taille M) :", parse_mode="Markdown")
+    await query.message.reply_text("📝 **Détaille ta commande** (ex: Pantalon Nike Trail Taille S) :", parse_mode="Markdown")
     return ENTERING_CART
 
 async def save_cart_items(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -342,7 +347,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec le catalogue lifestyle / streetwear quotidien !")
+    print("Bot opérationnel avec l'inventaire exact (Pantalons Trail/Phenom/Aeroswift, Tech Fleece, Tee-shirts) !")
     app.run_polling()
 
 if __name__ == "__main__":
