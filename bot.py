@@ -1,5 +1,6 @@
 import os
 import logging
+import sqlite3
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -22,35 +23,97 @@ except ValueError:
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
 
-# Bases de données en mémoire
-referrals = {}        # {user_id: referrer_id}
-user_join_dates = {}  # {user_id: datetime}
-known_users = set()   # Liste de tous les utilisateurs uniques pour le Broadcast
-
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# Catalogue avec état du stock (available: True/False)
+# --- 1. BASE DE DONNÉES SQLITE ---
+def init_db():
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            points INTEGER DEFAULT 0,
+            banned INTEGER DEFAULT 0
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            item_id TEXT,
+            item_name TEXT,
+            price REAL,
+            date TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_user(user_id, username=""):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT points, banned FROM users WHERE user_id = ?", (user_id,))
+    res = cursor.fetchone()
+    if not res:
+        cursor.execute("INSERT INTO users (user_id, username, points, banned) VALUES (?, ?, 0, 0)", (user_id, username))
+        conn.commit()
+        res = (0, 0)
+    conn.close()
+    return {"points": res[0], "banned": res[1]}
+
+def add_points(user_id, points):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
+    conn.commit()
+    conn.close()
+
+def set_ban(user_id, status):
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET banned = ? WHERE user_id = ?", (status, user_id))
+    conn.commit()
+    conn.close()
+
+referrals = {}
+user_join_dates = {}
+reservations = {}  # {item_id: {"user_id": int, "expires": datetime}}
+known_users = set()
+
 CATALOG = {
-    "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": "60 €", "available": True},
-    "2": {"name": "Pantalon Nike Aeroswift", "taille": "Non précisée", "etat": "Excellent état", "prix": "75 €", "available": True},
-    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "Non précisée", "etat": "Excellent état", "prix": "90 €", "available": True},
-    "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": "60 €", "available": True},
-    "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": "90 €", "available": True},
-    "6": {"name": "Tee-Shirt Nike Trail", "taille": "Non précisée", "etat": "Excellent état", "prix": "40 €", "available": True},
-    "7": {"name": "Tee-Shirt Nike Running Division", "taille": "Non précisée", "etat": "Excellent état", "prix": "35 €", "available": True},
-    "8": {"name": "Tee-Shirt Nike Dri-Fit (Rouge)", "taille": "Non précisée", "etat": "Excellent état", "prix": "30 €", "available": True},
-    "9": {"name": "Sweat Nike Tech Fleece (Noir)", "taille": "S", "etat": "Excellent état", "prix": "70 €", "available": True},
-    "10": {"name": "Pantalon Nike Phenom Elite Poche Noir", "taille": "S", "etat": "8/10", "prix": "80 €", "available": True}
+    "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": 60, "available": True},
+    "2": {"name": "Pantalon Nike Aeroswift", "taille": "M", "etat": "Excellent état", "prix": 75, "available": True},
+    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
+    "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": 60, "available": True},
+    "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": 90, "available": True},
+    "6": {"name": "Tee-Shirt Nike Trail", "taille": "S", "etat": "Excellent état", "prix": 40, "available": True},
+    "7": {"name": "Tee-Shirt Nike Running Division", "taille": "M", "etat": "Excellent état", "prix": 35, "available": True},
+    "8": {"name": "Tee-Shirt Nike Dri-Fit (Rouge)", "taille": "S", "etat": "Excellent état", "prix": 30, "available": True},
+    "9": {"name": "Sweat Nike Tech Fleece (Noir)", "taille": "S", "etat": "Excellent état", "prix": 70, "available": True},
+    "10": {"name": "Pantalon Nike Phenom Elite Poche Noir", "taille": "S", "etat": "8/10", "prix": 80, "available": True}
 }
+
+def clean_reservations():
+    now = datetime.now()
+    expired = [k for k, v in reservations.items() if v["expires"] < now]
+    for k in expired:
+        del reservations[k]
 
 def get_main_keyboard():
     keyboard = [
         [
             InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
-            InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral")
+            InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size")
         ],
         [
-            InlineKeyboardButton("🚚 Livraisons & Paiements", callback_data="show_info"),
+            InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral"),
+            InlineKeyboardButton("⭐ Fidélité", callback_data="show_points")
+        ],
+        [
+            InlineKeyboardButton("🚚 Livraisons & Offres", callback_data="show_info"),
             InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_LINK)
         ],
         [
@@ -72,36 +135,68 @@ def get_main_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_name = update.effective_user.first_name
-    known_users.add(user_id)
+    user = update.effective_user
+    known_users.add(user.id)
+    u_data = get_user(user.id, user.username)
+    if u_data["banned"]:
+        return
 
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
-        if referrer_id != user_id and user_id not in referrals:
-            referrals[user_id] = referrer_id
-            user_join_dates[user_id] = datetime.now()
+        if referrer_id != user.id and user.id not in referrals:
+            referrals[user.id] = referrer_id
+            user_join_dates[user.id] = datetime.now()
 
     welcome_msg = (
-        f"👋 Bienvenue {user_name} sur IDF Running Shop !\n\n"
-        "Boutique indépendante streetwear & vêtements running pour jeunes. 🔥\n"
-        "(Aucune chaussure ni accessoire — vêtements uniquement)\n\n"
-        "• Envoi rapide Colissimo ou remise en main propre (IDF)\n"
-        "• Paiements : Liquide, Vinted, Snapchat, Revolut\n\n"
-        "Envoie directement le numéro d'un article (ex: #1, #4) pour commander !"
+        f"👋 Bienvenue {user.first_name} sur IDF Running Shop !\n\n"
+        "Boutique indépendante streetwear & vêtements running. 🔥\n"
+        "• Port offert dès 170 € d'achat !\n"
+        "• Remise de -5€ / article supplémentaire dès 70 € d'achat.\n\n"
+        "Envoie le numéro d'un article (ex: #1) pour réserver (durée : 15 min) !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard())
 
+# --- 4. FILTRE PAR TAILLE & CALLBACKS ---
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    clean_reservations()
+
+    user_id = query.from_user.id
+    u_data = get_user(user_id)
+    if u_data["banned"]:
+        return
 
     if query.data == "show_catalog":
-        text = "🔥 STOCK ACTUEL (Sape Running / Streetwear) 🔥\n\n"
+        text = "🔥 STOCK ACTUEL 🔥\n\n"
         for item_id, data in CATALOG.items():
-            status = "🔴 [ÉPUISÉ]" if not data["available"] else f"• Taille : {data['taille']} | État : {data['etat']} | {data['prix']}"
+            if not data["available"]:
+                status = "🔴 [VENDU]"
+            elif item_id in reservations:
+                status = "⏳ [RÉSERVÉ - 15min]"
+            else:
+                status = f"• Taille : {data['taille']} | État : {data['etat']} | {data['prix']} €"
             text += f"#{item_id} - {data['name']}\n   {status}\n\n"
-        text += "👉 Pour réserver un article disponible, envoie # suivi du numéro (ex: #1)."
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+
+    elif query.data == "filter_size":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Taille S", callback_data="size_S"), InlineKeyboardButton("Taille M", callback_data="size_M")],
+            [InlineKeyboardButton("Taille L", callback_data="size_L"), InlineKeyboardButton("Taille XL", callback_data="size_XL")],
+            [InlineKeyboardButton("🔙 Retour", callback_data="show_catalog")]
+        ])
+        await query.edit_message_text("Sélectionne ta taille :", reply_markup=kb)
+
+    elif query.data.startswith("size_"):
+        size = query.data.split("_")[1]
+        text = f"🔎 Articles disponibles en taille {size} :\n\n"
+        found = False
+        for item_id, data in CATALOG.items():
+            if data["taille"] == size and data["available"] and item_id not in reservations:
+                text += f"#{item_id} - {data['name']} ({data['prix']} €)\n"
+                found = True
+        if not found:
+            text += "Aucun article disponible pour cette taille."
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data == "show_referral":
@@ -115,59 +210,127 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
+    # --- 6. PROGRAMME DE FIDÉLITÉ (120 pts = -10€) ---
+    elif query.data == "show_points":
+        pts = u_data["points"]
+        text = (
+            f"⭐ TES POINTS FIDÉLITÉ : {pts} pts\n\n"
+            "• 1 € dépensé = 1 point gagné.\n"
+            "• Atteins 120 points pour débloquer -10 € sur ta commande !\n"
+        )
+        if pts >= 120:
+            text += "\n🎉 Tu as 120 pts ! Envoie un MP au vendeur pour utiliser tes -10 € !"
+        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
+
     elif query.data == "show_info":
         text = (
-            "🚚 LIVRAISONS & MOYENS DE PAIEMENT\n\n"
-            "📍 Remise en main propre :\n"
-            "• Basé dans le 93, livraison possible dans les gares d'Île-de-France (frais selon la distance).\n"
-            "• Paiement : Liquide uniquement lors de la remise.\n\n"
-            "📦 Envoi Colissimo / Vinted :\n"
-            "• Départ des colis avant 14h pour toute commande Telegram.\n"
-            "• Pour Colissimo : Ajouter 6 € de frais de port au prix de l'article.\n"
-            f"• Paiement Colissimo direct via Revolut : {REVOLUT_LINK}\n"
-            "• Également disponible sur Vinted & Snapchat."
+            "🚚 OFFRES & LIVRAISON\n\n"
+            "🔥 RÈGLES DE RÉDUCTIONS :\n"
+            "• Dès 70 € d'achat total : -5 € appliqués sur chaque article supplémentaire !\n"
+            "• Dès 170 € d'achat total : Livraison Colissimo 100% GRATUITE !\n\n"
+            "📍 Remise en main propre (93 / Gares IDF) ou Colissimo (+6 € sauf si >170 €)."
         )
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
-    # Prise en charge par un membre du staff admin
-    elif query.data == "claim_order":
+    elif query.data.startswith("claim_"):
         admin_name = query.from_user.first_name
         new_text = query.message.text + f"\n\n✅ Pris en charge par {admin_name}"
         await query.edit_message_text(text=new_text, reply_markup=None)
 
-# Fonction 1 : Gestion des stocks par commande /vendu ou /resto
+    elif query.data.startswith("confirm_pay_"):
+        target_id = int(query.data.split("_")[2])
+        add_points(target_id, 50)
+        await context.bot.send_message(chat_id=target_id, text="✅ Ton paiement a été validé par l'équipe ! Tes points de fidélité ont été crédités.")
+        await query.edit_message_text(text=query.message.text + "\n\n✅ PAIEMENT VALIDÉ", reply_markup=None)
+
+# --- 3. RÉSERVATION 15 MIN & RECEPTION DES MESSAGES / PHOTOS ---
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    clean_reservations()
+    if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
+        return
+
+    user = update.effective_user
+    known_users.add(user.id)
+    u_data = get_user(user.id, user.username)
+    if u_data["banned"]:
+        return
+
+    # --- 8. CAPTURE D'ÉCRAN DE PAIEMENT ---
+    if update.message.photo:
+        photo = update.message.photo[-1].file_id
+        admin_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}")]
+        ])
+        await context.bot.send_photo(
+            chat_id=ADMIN_GROUP_ID,
+            photo=photo,
+            caption=f"💳 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username})\nID : {user.id}",
+            reply_markup=admin_kb
+        )
+        await update.message.reply_text("✅ Reçu transmis à l'équipe. On valide ta commande rapidement !")
+        return
+
+    text = update.message.text.strip()
+
+    if text.startswith("#") and text[1:].isdigit():
+        item_id = text[1:]
+        if item_id in CATALOG:
+            item = CATALOG[item_id]
+
+            if not item["available"]:
+                await update.message.reply_text("❌ Cet article est définitivement vendu !")
+                return
+
+            if item_id in reservations and reservations[item_id]["user_id"] != user.id:
+                await update.message.reply_text("⏳ Cet article est en cours de réservation par un autre client (15 min).")
+                return
+
+            reservations[item_id] = {
+                "user_id": user.id,
+                "expires": datetime.now() + timedelta(minutes=15)
+            }
+
+            confirm_text = (
+                f"✅ Article #{item_id} ({item['name']}) bloqué pour toi pendant 15 minutes !\n"
+                f"• Prix : {item['prix']} €\n\n"
+                f"Envoie ton reçu Revolut ici en photo ou contacte @{SELLER_USERNAME} pour finaliser."
+            )
+            await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
+
+            claim_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⏳ Prise en charge", callback_data=f"claim_{item_id}")]])
+            await context.bot.send_message(
+                chat_id=ADMIN_GROUP_ID,
+                text=f"🚨 NOUVELLE RÉSERVATION (15 min)\nClient : {user.first_name} (@{user.username})\nArticle : #{item_id} - {item['name']}",
+                reply_markup=claim_kb
+            )
+            return
+
+    await update.message.reply_text(f"Tape le numéro d'un article (ex: #1) ou contacte @{SELLER_USERNAME}.", reply_markup=get_main_keyboard())
+
+# --- COMMANDES ADMIN ---
 async def cmd_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
-
     if context.args and context.args[0] in CATALOG:
         item_id = context.args[0]
         CATALOG[item_id]["available"] = False
         await update.message.reply_text(f"❌ Article #{item_id} ({CATALOG[item_id]['name']}) marqué comme VENDU.")
-    else:
-        await update.message.reply_text("Utilisation : `/vendu <numéro>` (ex: `/vendu 2`)", parse_mode="Markdown")
 
 async def cmd_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
-
     if context.args and context.args[0] in CATALOG:
         item_id = context.args[0]
         CATALOG[item_id]["available"] = True
         await update.message.reply_text(f"✅ Article #{item_id} ({CATALOG[item_id]['name']}) remis EN STOCK.")
-    else:
-        await update.message.reply_text("Utilisation : `/resto <numéro>` (ex: `/resto 2`)", parse_mode="Markdown")
 
-# Fonction 3 : Broadcast d'annonces à tous les clients
 async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
-
     message = " ".join(context.args)
     if not message:
-        await update.message.reply_text("Utilisation : `/annonce Votre message ici`", parse_mode="Markdown")
+        await update.message.reply_text("Utilisation : `/annonce Votre message`", parse_mode="Markdown")
         return
-
     count = 0
     broadcast_text = f"📢 **ANNONCE IDF RUNNING SHOP**\n\n{message}"
     for user_id in known_users:
@@ -176,84 +339,92 @@ async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
             count += 1
         except Exception:
             continue
-
     await update.message.reply_text(f"🚀 Annonce envoyée à {count} client(s).")
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
+# --- 2. EXPORT EXCEL / CSV ---
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sales")
+    rows = cursor.fetchall()
+    conn.close()
 
-    text = update.message.text.strip()
-    user = update.effective_user
-    known_users.add(user.id)
+    csv_data = "ID,User_ID,Article_ID,Nom,Prix,Date\n"
+    for r in rows:
+        csv_data += f"{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n"
 
-    if text.startswith("#") and text[1:].isdigit():
-        item_id = text[1:]
-        if item_id in CATALOG:
-            item = CATALOG[item_id]
-            
-            # Vérification du stock
-            if not item["available"]:
-                await update.message.reply_text(
-                    f"❌ L'article #{item_id} est actuellement épuisé !", 
-                    reply_markup=get_main_keyboard()
-                )
-                return
+    with open("ventes.csv", "w", encoding="utf-8") as f:
+        f.write(csv_data)
 
-            has_valid_ref = False
-            referrer_id = referrals.get(user.id)
-            if referrer_id and user.id in user_join_dates:
-                if datetime.now() - user_join_dates[user.id] <= timedelta(days=20):
-                    has_valid_ref = True
+    await context.bot.send_document(chat_id=ADMIN_GROUP_ID, document=open("ventes.csv", "rb"), caption="📊 Bilan des ventes Excel/CSV")
 
-            confirm_text = (
-                f"✅ Tu as sélectionné l'article #{item_id} : {item['name']}\n"
-                f"• Prix : {item['prix']}\n\n"
-                "Pour finaliser la commande :\n"
-                f"1. Clique sur 'Contacter le vendeur' (@{SELLER_USERNAME})\n"
-                f"2. Pour un paiement direct et envoi Colissimo (+6 €), utilise Revolut : {REVOLUT_LINK}"
-            )
-            await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
+# --- 10. ANTI-SPAM & BAN ---
+async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if context.args:
+        target_id = int(context.args[0])
+        set_ban(target_id, 1)
+        await update.message.reply_text(f"🚫 L'utilisateur {target_id} a été banni.")
 
-            # Fonction 2 : Alerte admin avec bouton de suivi
-            username_str = f"@{user.username}" if user.username else "Aucun pseudo"
-            admin_alert = (
-                "🚨 NOUVELLE INTERACTION ARTICLE\n\n"
-                f"• Client : {user.first_name} ({username_str})\n"
-                f"• ID Client : {user.id}\n"
-                f"• Article : #{item_id} - {item['name']} ({item['prix']})\n"
-            )
-            if has_valid_ref:
-                admin_alert += f"\n🎁 Alerte Parrainage : Arrivé via parrain {referrer_id} depuis moins de 20j."
+async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if context.args:
+        target_id = int(context.args[0])
+        set_ban(target_id, 0)
+        await update.message.reply_text(f"✅ L'utilisateur {target_id} a été débanni.")
 
-            claim_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("⏳ Prendre en charge", callback_data="claim_order")]
-            ])
+# --- 5. GÉNÉRATION DE FACTURE ---
+async def cmd_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if len(context.args) >= 2:
+        client_name = context.args[0]
+        montant = context.args[1]
+        facture = (
+            "📄 **FACTURE - IDF RUNNING SHOP**\n"
+            f"Client : {client_name}\n"
+            f"Date : {datetime.now().strftime('%d/%m/%Y')}\n"
+            f"Montant Total : {montant} €\n"
+            "Statut : PAIEMENT VALIDÉ\n\n"
+            "Merci pour votre confiance !"
+        )
+        await update.message.reply_text(facture, parse_mode="Markdown")
 
-            try:
-                await context.bot.send_message(
-                    chat_id=ADMIN_GROUP_ID, 
-                    text=admin_alert, 
-                    reply_markup=claim_keyboard
-                )
-            except Exception as e:
-                logging.error(f"Erreur envoi groupe admin ({ADMIN_GROUP_ID}): {e}")
-
-            return
-
-    reply = f"Pour réserver un article, tape le numéro avec un hashtag (ex: #1). Sinon contacte directement @{SELLER_USERNAME} !"
-    await update.message.reply_text(reply, reply_markup=get_main_keyboard())
+# --- 7. SUIVI COLISSIMO ---
+async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if len(context.args) >= 2:
+        target_id = int(context.args[0])
+        tracking_num = context.args[1]
+        msg = f"📦 **SUIVI DE TON COLIS**\n\nTon numéro de suivi Colissimo : `{tracking_num}`\nSuis ton colis ici : https://www.laposte.fr/outils/suivre-vos-envois"
+        try:
+            await context.bot.send_message(chat_id=target_id, text=msg, parse_mode="Markdown")
+            await update.message.reply_text(f"✅ Numéro de suivi envoyé au client {target_id}.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Impossible d'envoyer le MP : {e}")
+    else:
+        await update.message.reply_text("Utilisation : `/suivi ID_CLIENT NUMERO_COLISSIMO`", parse_mode="Markdown")
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-    
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("vendu", cmd_vendu))
     app.add_handler(CommandHandler("resto", cmd_resto))
     app.add_handler(CommandHandler("annonce", cmd_annonce))
+    app.add_handler(CommandHandler("stats", cmd_stats))
+    app.add_handler(CommandHandler("ban", cmd_ban))
+    app.add_handler(CommandHandler("unban", cmd_unban))
+    app.add_handler(CommandHandler("facture", cmd_facture))
+    app.add_handler(CommandHandler("suivi", cmd_suivi))
     app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+
     app.run_polling()
 
 if __name__ == "__main__":
