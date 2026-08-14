@@ -1,4 +1,2 @@
-python-telegram-bot==21.4
-psycopg[binary]
-groq==0.18.0
-pillow==10.4.0
+python-telegram-bot>=20.0
+groq>=0.4.0
