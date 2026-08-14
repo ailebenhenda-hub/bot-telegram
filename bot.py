@@ -69,6 +69,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
 
+    # Gestion du lien de parrainage (/start <referrer_id>)
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
         if referrer_id != user_id and user_id not in referrals:
@@ -85,6 +86,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
+# Gestion des clics sur les boutons du menu
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -95,7 +97,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"**#{item_id}** - {data['name']}\n"
             text += f"   • Taille : {data['taille']} | État : {data['etat']} | **{data['prix']}**\n\n"
         text += "👉 Pour réserver, envoie `#` suivi du numéro (ex: `#1`)."
-        await query.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
     elif query.data == "show_referral":
         bot_info = await context.bot.get_me()
@@ -106,7 +108,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📌 **Règle :** Si ton filleul passe commande dans les **20 jours** suivant son arrivée, "
             "tu reçois **5 € de réduction** sur ta prochaine commande !"
         )
-        await query.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
     elif query.data == "show_info":
         text = (
@@ -120,8 +122,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• Paiement Colissimo direct via Revolut : {REVOLUT_LINK}\n"
             "• Également disponible sur Vinted & Snapchat."
         )
-        await query.message.reply_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(text=text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
+# Gestion des messages texte et commande par hashtag (#1, #2...)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id == ADMIN_GROUP_ID:
         return
@@ -134,6 +137,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if item_id in CATALOG:
             item = CATALOG[item_id]
             
+            # Vérification du parrainage (< 20 jours)
             has_valid_ref = False
             referrer_id = referrals.get(user.id)
             if referrer_id and user.id in user_join_dates:
@@ -149,6 +153,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(confirm_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
+            # Alerte au groupe Admin
             admin_alert = (
                 f"🚨 **NOUVELLE INTERACTION ARTICLE**\n"
                 f"• Client : {user.first_name} (@{user.username or 'pas_de_username'})\n"
