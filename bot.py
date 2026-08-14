@@ -28,13 +28,14 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens officiels (Verrouillés et définitifs)
+# Liens officiels (Tous les liens sont là, y compris ton DM Telegram)
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 SUPPORT_LINK = "https://t.me/idfrunningvip"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
+TELEGRAM_DM_LINK = "https://t.me/idfrunningvip"  # Ton lien direct pour te DM
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -67,7 +68,7 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (INVENTAIRE & LIENS STRICTS) ---
+# --- IA GROQ (INVENTAIRE & TOUS LES LIENS FORCÉS) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
@@ -80,7 +81,8 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted, ton TikTok ou un lien, tu DOIS obligatoirement inclure les liens bruts correspondants dans ta réponse :\n"
+        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted, ton TikTok, ton lien pour te DM / contacter sur Telegram, tu DOIS obligatoirement inclure les liens bruts correspondants :\n"
+        f"- Telegram DM : {TELEGRAM_DM_LINK}\n"
         f"- Snapchat : {SNAPCHAT_LINK}\n"
         f"- Vinted : {VINTED_LINK}\n"
         f"- TikTok : {TIKTOK_LINK}\n\n"
@@ -116,13 +118,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔔 Alertes Restock", callback_data="restock_menu")],
         [InlineKeyboardButton("🏷️ Codes Promo", callback_data="promo_codes")],
         [InlineKeyboardButton("🤝 Parrainage", callback_data="referral_menu")],
-        [InlineKeyboardButton("📱 Vinted, Snap & TikTok", callback_data="vinted_menu")],
+        [InlineKeyboardButton("📱 Réseaux (Vinted, Snap, TikTok)", callback_data="vinted_menu")],
         [InlineKeyboardButton("🤝 Remise en main propre (93 / Gares IDF)", callback_data="hand_delivery")],
         [InlineKeyboardButton("📦 Mes Commandes", callback_data="my_orders")],
         [InlineKeyboardButton("📏 Guide des tailles", callback_data="size_guide")],
         [InlineKeyboardButton("🚚 Suivre mon colis", callback_data="track_parcel")],
         [InlineKeyboardButton("✅ J'ai effectué mon paiement", callback_data="paid")],
-        [InlineKeyboardButton("💬 Support / Aide", url=SUPPORT_LINK)],
+        [InlineKeyboardButton("💬 Me DM sur Telegram", url=TELEGRAM_DM_LINK)],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -186,7 +188,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = referral_counts.get(user_id, 0)
         text = f"🤝 **Programme de Parrainage**\n\nPartage ton lien personnel :\n`{link}`\n\n📊 Filleuls validés : `{count}`"
         kbd = [
-            [InlineKeyboardButton("💬 Réclamer mes avantages", url=SUPPORT_LINK)],
+            [InlineKeyboardButton("💬 Me DM directement", url=TELEGRAM_DM_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -210,7 +212,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "hand_delivery":
         text = "🤝 **Remise en main propre**\n\nDisponible en Île-de-France (principalement dans le 93 et en gares selon mes disponibilités). Contacte-moi pour fixer les détails :"
         kbd = [
-            [InlineKeyboardButton("💬 Contacter sur Telegram", url=SUPPORT_LINK)],
+            [InlineKeyboardButton("💬 Me DM sur Telegram", url=TELEGRAM_DM_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -345,7 +347,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot 100% configuré et blindé (TikTok, Snap, Vinted, Stock strict et Main propre IDF) !")
+    print("Bot 100% blindé avec Telegram DM, Snap, Vinted, TikTok, Stock et Main propre IDF !")
     app.run_polling()
 
 if __name__ == "__main__":
