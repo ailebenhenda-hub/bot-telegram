@@ -19,7 +19,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-5313705184"))
+ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-3956183527"))
 
 # Initialisation Groq
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -28,13 +28,14 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens officiels & Comptes
+# Liens officiels & Comptes demandés
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
-CREATOR_DM_LINK = "https://t.me/idf_runningshop"
+PRIVATE_TELEGRAM_LINK = "https://t.me/idf_runningshop"
+ADMIN_GROUP_LINK = "https://t.me/+q2HRbe-dBydlZWZk"
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -67,60 +68,39 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ & LOGIQUE ADMIN / CRÉATEUR ---
+# --- IA GROQ PROPRE & COMPLÈTE ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     user_message = update.message.text
-    lower_msg = user_message.lower()
     
-    is_admin_request = any(kw in lower_msg for kw in ["admin", "aide", "renseignement", "humain", "problème", "support"])
-    is_asking_creator = any(kw in lower_msg for kw in ["créateur", "boss", "propriétaire", "fondateur"])
-
-    # Envoi automatique de l'alerte dans le groupe admin si l'utilisateur demande de l'aide
-    if is_admin_request and not is_asking_creator:
-        try:
-            alert_text = (
-                f"🚨 **ALERTE GROUPE ADMIN : Client en attente !** 🚨\n\n"
-                f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
-                f"🆔 **ID :** `{user.id}`\n"
-                f"💬 **Message :** \"{user_message}\""
-            )
-            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_text, parse_mode="Markdown")
-        except Exception as e:
-            logging.error(f"Erreur alerte admin groupe : {e}")
-
     system_prompt = (
         "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
         "INTERDICTION FORMELLE d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'.\n\n"
-        "RÈGLE 1 (STOCK) : Si on te demande ce que tu vends, ce que tu as en stock, ou une question sur tes articles, tu DOIS commencer par exactement : "
-        "'Actuellement on vend :' et lister uniquement ces articles :\n"
+        "STOCKS DISPONIBLES ACTUELLEMENT :\n"
         "- Pantalon Nike Trail (60 €)\n"
         "- Sweat Nike Tech Fleece (70 €)\n"
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (ADMIN VS CRÉATEUR) :\n"
-        "- Si l'utilisateur demande à parler à un ADMIN, de l'aide ou du support : dis-lui clairement qu'un administrateur a été prévenu et qu'il va lui répondre ici.\n"
-        f"- Si l'utilisateur demande explicitement le CRÉATEUR ou le boss : donne ton lien personnel direct ({CREATOR_DM_LINK}).\n"
-        f"Si on te demande ton Snapchat, ton Vinted ou ton TikTok, donne respectivement : Snapchat ({SNAPCHAT_LINK}), Vinted ({VINTED_LINK}), TikTok ({TIKTOK_LINK}).\n\n"
-        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon disponibilités). "
-        "Paiement par Revolut (https://revolut.me/shvppeur_corp)."
+        "LIENS ET CONTACTS OFFICIELS À FOURNIR SI ON TE LES DEMANDE :\n"
+        f"- Telegram privé / Créateur : {PRIVATE_TELEGRAM_LINK}\n"
+        f"- Groupe Admin / Staff : {ADMIN_GROUP_LINK}\n"
+        f"- Snapchat : {SNAPCHAT_LINK}\n"
+        f"- Vinted : {VINTED_LINK}\n"
+        f"- TikTok : {TIKTOK_LINK}\n"
+        f"- Paiement Revolut : {REVOLUT_PAYMENT_LINK}\n\n"
+        "MODE DE VENTE : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon disponibilités)."
     )
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-            temperature=0.1, max_tokens=250
+            temperature=0.1, max_tokens=300
         )
         reply_text = completion.choices[0].message.content
-        
-        if is_admin_request and not is_asking_creator and "administrateur" not in reply_text.lower():
-            reply_text = "Un administrateur a été notifié de ta demande et va te répondre directement ici très rapidement 🔔"
-
         await update.message.reply_text(reply_text)
     except Exception as e:
         logging.error(f"Erreur IA : {e}")
-        await update.message.reply_text("Un administrateur a été prévenu, il revient vers toi au plus vite !")
+        await update.message.reply_text("Un problème est survenu, contacte directement le créateur ici : " + PRIVATE_TELEGRAM_LINK)
 
 # --- COMMANDES PRINCIPALES ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,20 +139,9 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    try:
-        alert_text = (
-            f"🚨 **ALERTE GROUPE ADMIN (Commande support) !** 🚨\n\n"
-            f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
-            f"🆔 **ID :** `{user.id}`"
-        )
-        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_text, parse_mode="Markdown")
-    except Exception as e:
-        logging.error(f"Erreur alerte admin groupe : {e}")
-
     await update.message.reply_text(
-        "🆘 **Support IDF Running // V.I.P**\n\n"
-        "Un administrateur a été prévenu de ta demande et va te répondre directement ici dans les plus brefs délais 🔔"
+        f"🆘 **Support IDF Running // V.I.P**\n\n"
+        f"Pour contacter directement le créateur, passe par ici : {PRIVATE_TELEGRAM_LINK}"
     )
 
 # --- GESTION DES BOUTONS INTERACTIFS ---
@@ -326,6 +295,7 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
         ]
     ]
     
+    # Envoi vers le groupe admin conservé uniquement pour les reçus de commande (comme demandé pour tout recevoir)
     try:
         await context.bot.send_photo(
             chat_id=ADMIN_GROUP_ID,
@@ -335,9 +305,9 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
             parse_mode="Markdown"
         )
     except Exception as e:
-        logging.error(f"Erreur envoi admin: {e}")
+        logging.error(f"Erreur envoi admin (Vérifie l'ID du groupe `-3956183527` ou les droits admin du bot) : {e}")
     
-    await update.message.reply_text("🎉 **Reçu bien reçu !** Je transmets à l'équipe.")
+    await update.message.reply_text("🎉 **Reçu bien reçu !** L'équipe a été notifiée.")
     return ConversationHandler.END
 
 async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -388,7 +358,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec l'IA et les alertes groupe activées !")
+    print("Bot nettoyé et relancé avec succès !")
     app.run_polling()
 
 if __name__ == "__main__":
