@@ -2,7 +2,7 @@ import os
 import logging
 import hashlib
 from io import BytesIO
-import psycopg2
+import psycopg
 from PIL import Image
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -38,10 +38,10 @@ groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 WAITING_ORDER_DETAILS, WAITING_RECEIPT = range(2)
 
 # ----------------------------------------------------
-# BASE DE DONNÉES POSTGRESQL
+# BASE DE DONNÉES POSTGRESQL (PSYCOPG V3)
 # ----------------------------------------------------
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg.connect(DATABASE_URL)
 
 def init_db():
     if not DATABASE_URL:
@@ -127,7 +127,6 @@ def register_user(user_id: int, username: str, first_name: str, referrer_id: int
     conn.close()
 
 def check_and_save_receipt(hash_md5: str, user_id: int) -> bool:
-    """Retourne True si le reçu est valide (nouveau), False si doublon."""
     if not DATABASE_URL:
         return True
     conn = get_db()
@@ -136,7 +135,7 @@ def check_and_save_receipt(hash_md5: str, user_id: int) -> bool:
     if cursor.fetchone():
         cursor.close()
         conn.close()
-        return False  # Doublon !
+        return False
     
     cursor.execute("INSERT INTO receipts (hash_md5, user_id) VALUES (%s, %s);", (hash_md5, user_id))
     conn.commit()
@@ -179,7 +178,7 @@ Tes consignes :
    - Réseaux : TikTok (@idf_runningshop), Vinted (idf_runningshop), Snapchat (BW0Gzw9i), VIP Telegram (@idfrunningvip).
    - Tailles disponibles : S, M, L, XL.
    - Contact humain : @shvppeur_bot.
-3. Si un client demande un humain, l'accès au créateur, une négociation spéciale ou une question trop complexe : indique-lui de contacter directement @shvppeur_bot ou clique sur le bouton Contact.
+3. Si un client demande un humain, l'accès au créateur, une négociation spéciale ou une question trop complexe : indique-lui de contacter directement @shvppeur_bot ou de cliquer sur le bouton Contact.
 4. Ne jamais inventer de stocks ou de réductions qui ne sont pas listés.
 """
 
@@ -210,7 +209,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Vous êtes banni du bot.")
         return
 
-    # Gestion du parrainage via /start ref_12345
     referrer_id = None
     if context.args and context.args[0].startswith("ref_"):
         try:
@@ -321,8 +319,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⭐ **Avis Clients & Preuves :**", reply_markup=InlineKeyboardMarkup(kb))
 
     elif data == "btn_contact":
-        # Alerte automatique dans le groupe admin
-        alert_msg = f"🚨 **Demande d'assistance Humaine**\n\n👤 **Client :** {user.first_name} (@{user.username})\n🆔 **ID :** `{user.id}`"
+        alert_msg = f"🚨 **Demande d'assistance Humaine**\n\n👤 **Client :** {user.first_name} (@{user.username or 'aucun'})\n🆔 **ID :** `{user.id}`"
         await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_msg, parse_mode="Markdown")
 
         kb = [
@@ -359,21 +356,18 @@ async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     photo_file = await update.message.photo[-1].get_file()
     
-    # Téléchargement de l'image en mémoire pour calculer le Hash MD5
     image_bytes = await photo_file.download_as_bytearray()
     hash_md5 = hashlib.md5(image_bytes).hexdigest()
 
-    # Vérification Anti-Doublon
     if not check_and_save_receipt(hash_md5, user.id):
         await update.message.reply_text("❌ **ERREUR : Ce reçu a déjà été soumis !**\nToute tentative de fraude entraîne un bannissement définitif.")
         return ConversationHandler.END
 
     order_details = context.user_data.get('order_details', 'Non renseigné')
 
-    # Envoi au Groupe Admin
     caption = (
         f"📥 **NOUVELLE COMMANDE REÇUE**\n\n"
-        f"👤 **Client :** {user.first_name} (@{user.username})\n"
+        f"👤 **Client :** {user.first_name} (@{user.username or 'aucun'})\n"
         f"🆔 **ID :** `{user.id}`\n\n"
         f"📝 **Détails :**\n{order_details}\n\n"
         f"🔑 **Hash MD5 :** `{hash_md5}`"
@@ -428,7 +422,7 @@ async def admin_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_caption(caption=query.message.caption + "\n\n🔵 **STATUT : EXPÉDIÉ**")
 
 # ----------------------------------------------------
-# MESSAGE TEXTE LIBRE (INTELLIGENCE ARTIFICIELLE)
+# MESSAGE TEXTE LIBRE (TRANSFERT ADMIN + IA GROQ)
 # ----------------------------------------------------
 async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -436,7 +430,20 @@ async def handle_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
-    # Envoi de la question à Groq / Llama 3.3
+
+    # Transférer la question du client au groupe Admin en direct
+    admin_log = (
+        f"💬 **Nouveau message client**\n"
+        f"👤 **De :** {user.first_name} (@{user.username or 'aucun'})\n"
+        f"🆔 **ID :** `{user.id}`\n"
+        f"📩 **Message :** {text}"
+    )
+    try:
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_log, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Erreur lors du transfert au groupe admin : {e}")
+
+    # Réponse de l'IA Groq / Llama 3.3
     ai_reply = ask_ai(text)
     await update.message.reply_text(ai_reply, reply_markup=main_menu())
 
