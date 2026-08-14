@@ -13,18 +13,21 @@ from telegram.ext import (
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Conversion explicite en int pour éviter les erreurs de type
-ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-3956183527"))
+# Récupération souple de l'ID (gestion string / int)
+RAW_ADMIN_ID = os.getenv("ADMIN_GROUP_ID", "-3956183527")
+try:
+    ADMIN_GROUP_ID = int(RAW_ADMIN_ID)
+except ValueError:
+    ADMIN_GROUP_ID = RAW_ADMIN_ID
+
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
 
-# Base de données en mémoire
-referrals = {}  # {user_id: referrer_id}
-user_join_dates = {}  # {user_id: datetime}
+referrals = {}
+user_join_dates = {}
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# Catalogue numéroté
 CATALOG = {
     "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": "60 €"},
     "2": {"name": "Pantalon Nike Aeroswift", "taille": "Non précisée", "etat": "Excellent état", "prix": "75 €"},
@@ -124,8 +127,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Évite de boucler si un message est envoyé dans le groupe admin
-    if update.effective_chat.id == ADMIN_GROUP_ID:
+    # Affiche l'ID du chat dans les logs pour le récupérer facilement
+    logging.info(f"Message reçu sur le chat ID : {update.effective_chat.id}")
+
+    if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
         return
 
     text = update.message.text.strip()
@@ -151,7 +156,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
 
-            # Construction du message d'alerte en texte brut
             username_str = f"@{user.username}" if user.username else "Aucun pseudo"
             admin_alert = (
                 "🚨 NOUVELLE INTERACTION ARTICLE\n\n"
@@ -162,12 +166,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if has_valid_ref:
                 admin_alert += f"\n🎁 Alerte Parrainage : Arrivé via parrain {referrer_id} depuis moins de 20j."
 
-            # Envoi vers le groupe sans parse_mode pour éviter les rejets Telegram
             try:
                 await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_alert)
             except Exception as e:
-                # Affiche l'erreur exacte dans les logs Railway si Telegram bloque l'envoi
-                logging.error(f"ERREUR D'ENVOI AU GROUPE ADMIN ({ADMIN_GROUP_ID}) : {e}")
+                logging.error(f"Erreur envoi groupe admin ({ADMIN_GROUP_ID}): {e}")
 
             return
 
