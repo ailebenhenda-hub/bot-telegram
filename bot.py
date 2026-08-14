@@ -14,7 +14,7 @@ from telegram.ext import (
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Récupération souple de l'ID (gestion string / int)
-RAW_ADMIN_ID = os.getenv("ADMIN_GROUP_ID", "-3956183527")
+RAW_ADMIN_ID = os.getenv("ADMIN_GROUP_ID", "-1003956183527")
 try:
     ADMIN_GROUP_ID = int(RAW_ADMIN_ID)
 except ValueError:
@@ -127,9 +127,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Affiche l'ID du chat dans les logs pour le récupérer facilement
-    logging.info(f"Message reçu sur le chat ID : {update.effective_chat.id}")
-
     if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
         return
 
