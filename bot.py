@@ -28,12 +28,13 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens officiels
+# Liens officiels (Verrouillés et définitifs)
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 SUPPORT_LINK = "https://t.me/idfrunningvip"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
+TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -66,24 +67,26 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (INVENTAIRE & LIENS FORCÉS) ---
+# --- IA GROQ (INVENTAIRE & LIENS STRICTS) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
         "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
         "INTERDICTION FORMELLE d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'.\n\n"
-        "RÈGLE 1 (INVENTAIRE) : Si on te demande ce que tu vends ou ce que tu as en stock, tu DOIS répondre exactement : "
-        "'Actuellement on vend :' suivi uniquement de ces articles :\n"
+        "RÈGLE 1 (STOCK) : Si on te demande ce que tu vends, ce que tu as en stock, ou une question sur tes articles, tu DOIS commencer par exactement : "
+        "'Actuellement on vend :' et lister uniquement ces articles :\n"
         "- Pantalon Nike Trail (60 €)\n"
         "- Sweat Nike Tech Fleece (70 €)\n"
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted ou un lien, tu DOIS obligatoirement inclure les liens bruts suivants dans ta réponse sans chercher d'excuse :\n"
+        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted, ton TikTok ou un lien, tu DOIS obligatoirement inclure les liens bruts correspondants dans ta réponse :\n"
         f"- Snapchat : {SNAPCHAT_LINK}\n"
-        f"- Vinted : {VINTED_LINK}\n\n"
-        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
-        "Sois direct, ultra-clair et donne immédiatement les informations demandées."
+        f"- Vinted : {VINTED_LINK}\n"
+        f"- TikTok : {TIKTOK_LINK}\n\n"
+        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). "
+        "Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
+        "Sois direct, ultra-clair et donne immédiatement les informations demandées sans inventer de règles."
     )
     try:
         completion = groq_client.chat.completions.create(
@@ -113,7 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔔 Alertes Restock", callback_data="restock_menu")],
         [InlineKeyboardButton("🏷️ Codes Promo", callback_data="promo_codes")],
         [InlineKeyboardButton("🤝 Parrainage", callback_data="referral_menu")],
-        [InlineKeyboardButton("🛍️ Vinted & Snapchat", callback_data="vinted_menu")],
+        [InlineKeyboardButton("📱 Vinted, Snap & TikTok", callback_data="vinted_menu")],
         [InlineKeyboardButton("🤝 Remise en main propre (93 / Gares IDF)", callback_data="hand_delivery")],
         [InlineKeyboardButton("📦 Mes Commandes", callback_data="my_orders")],
         [InlineKeyboardButton("📏 Guide des tailles", callback_data="size_guide")],
@@ -195,10 +198,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "vinted_menu":
-        text = "🛍️ **Vinted & Snapchat**\n\nRetrouve mes profils et annonces en ligne :"
+        text = "📱 **Vinted, Snapchat & TikTok**\n\nRetrouve mes réseaux et profils officiels :"
         kbd = [
             [InlineKeyboardButton("🛍️ Mon Vinted", url=VINTED_LINK)],
             [InlineKeyboardButton("👻 Mon Snapchat", url=SNAPCHAT_LINK)],
+            [InlineKeyboardButton("🎵 Mon TikTok", url=TIKTOK_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -341,7 +345,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot mis à jour : envoi forcé des liens et stock strict !")
+    print("Bot 100% configuré et blindé (TikTok, Snap, Vinted, Stock strict et Main propre IDF) !")
     app.run_polling()
 
 if __name__ == "__main__":
