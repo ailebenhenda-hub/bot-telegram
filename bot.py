@@ -122,7 +122,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Erreur IA : {e}")
         await update.message.reply_text("Un administrateur a été prévenu, il revient vers toi au plus vite !")
 
-# --- COMMANDES PRINCIPALES (/start, /menu, /aide) ---
+# --- COMMANDES PRINCIPALES ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or is_blacklisted(user.id):
@@ -160,10 +160,9 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Alerte les admins pour toute demande d'aide via la commande /aide
     try:
         alert_text = (
-            f"🚨 **ALERTE GROUPE ADMIN (/aide demandé) !** 🚨\n\n"
+            f"🚨 **ALERTE GROUPE ADMIN (Commande support) !** 🚨\n\n"
             f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
             f"🆔 **ID :** `{user.id}`"
         )
@@ -348,7 +347,7 @@ async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if "admin_accept_" in data:
         client_id = int(data.split("_")[2])
-        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **STATUT : VALIDÉ**", parse_Mode="Markdown")
+        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **STATUT : VALIDÉ**", parse_mode="Markdown")
         try:
             await context.bot.send_message(chat_id=client_id, text="✅ Paiement validé ! On gère l'envoi ou la remise en main propre.")
         except Exception:
@@ -377,15 +376,20 @@ def main():
     )
 
     app.add_handler(conv_handler)
+    
+    # Enregistrement explicite de toutes les commandes utilisateur
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu_command))
     app.add_handler(CommandHandler("aide", help_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("support", help_command))
+    app.add_handler(CommandHandler("contact", help_command))
+
     app.add_handler(CallbackQueryHandler(admin_action_handler, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec /start, /menu et /aide configurés !")
+    print("Bot redémarré : Commandes /menu, /aide, /support et /contact actives !")
     app.run_polling()
 
 if __name__ == "__main__":
