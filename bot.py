@@ -205,7 +205,7 @@ Règles :
 1. Court, poli et efficace.
 2. Livraisons : Colissimo 6€ (offerte dès 170€ d'achat).
 3. Main propre : En Île-de-France (93 et gares).
-4. Tailles : S (1m65-1m80), M (1m70-1m85), L (1m80-1m90), XL (1m90+).
+4. Tailles : S (1m65-1m75), M (1m75-1m85), L (1m85-1m90), XL (1m90+). Précise que ces tranches sont indicatives/approximatives et que le client connaît mieux son propre gabarit.
 5. Contact humain : Redirige vers @shvppeur_bot ou le bouton Contact si demandé.
 """
 
@@ -366,11 +366,13 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif data == "btn_sizes":
     await query.edit_message_text(
         "📏 **Guide des Tailles**\n\n"
-        "• **S :** 1m65 - 1m80\n"
-        "• **M :** 1m70 - 1m85\n"
-        "• **L :** 1m80 - 1m90\n"
+        "• **S :** 1m65 - 1m75\n"
+        "• **M :** 1m75 - 1m85\n"
+        "• **L :** 1m85 - 1m90\n"
         "• **XL :** 1m90+\n\n"
-        "📌 *Coupes ajustées streetwear & running.*",
+        "💡 *Note : Ces indications restent approximatives. Vous connaissez"
+        " mieux votre gabarit et vos préférences de coupe (ajustée ou"
+        " ample).*",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 Retour", callback_data="btn_main")]]
         ),
