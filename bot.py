@@ -13,7 +13,6 @@ from telegram.ext import (
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Récupération souple de l'ID (gestion string / int)
 RAW_ADMIN_ID = os.getenv("ADMIN_GROUP_ID", "-1003956183527")
 try:
     ADMIN_GROUP_ID = int(RAW_ADMIN_ID)
@@ -23,22 +22,25 @@ except ValueError:
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_LINK = "https://revolut.me/shvppeur_corp"
 
-referrals = {}
-user_join_dates = {}
+# Bases de données en mémoire
+referrals = {}        # {user_id: referrer_id}
+user_join_dates = {}  # {user_id: datetime}
+known_users = set()   # Liste de tous les utilisateurs uniques pour le Broadcast
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
+# Catalogue avec état du stock (available: True/False)
 CATALOG = {
-    "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": "60 €"},
-    "2": {"name": "Pantalon Nike Aeroswift", "taille": "Non précisée", "etat": "Excellent état", "prix": "75 €"},
-    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "Non précisée", "etat": "Excellent état", "prix": "90 €"},
-    "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": "60 €"},
-    "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": "90 €"},
-    "6": {"name": "Tee-Shirt Nike Trail", "taille": "Non précisée", "etat": "Excellent état", "prix": "40 €"},
-    "7": {"name": "Tee-Shirt Nike Running Division", "taille": "Non précisée", "etat": "Excellent état", "prix": "35 €"},
-    "8": {"name": "Tee-Shirt Nike Dri-Fit (Rouge)", "taille": "Non précisée", "etat": "Excellent état", "prix": "30 €"},
-    "9": {"name": "Sweat Nike Tech Fleece (Noir)", "taille": "S", "etat": "Excellent état", "prix": "70 €"},
-    "10": {"name": "Pantalon Nike Phenom Elite Poche Noir", "taille": "S", "etat": "8/10", "prix": "80 €"}
+    "1": {"name": "Pantalon Nike Trail", "taille": "S", "etat": "8/10", "prix": "60 €", "available": True},
+    "2": {"name": "Pantalon Nike Aeroswift", "taille": "Non précisée", "etat": "Excellent état", "prix": "75 €", "available": True},
+    "3": {"name": "Pantalon Nike Phenom Elite", "taille": "Non précisée", "etat": "Excellent état", "prix": "90 €", "available": True},
+    "4": {"name": "Sweat Nike Tech Aviateur v1", "taille": "M", "etat": "Excellent état", "prix": "60 €", "available": True},
+    "5": {"name": "Pantalon Nike Phenom Elite (Gris)", "taille": "L", "etat": "Excellent état", "prix": "90 €", "available": True},
+    "6": {"name": "Tee-Shirt Nike Trail", "taille": "Non précisée", "etat": "Excellent état", "prix": "40 €", "available": True},
+    "7": {"name": "Tee-Shirt Nike Running Division", "taille": "Non précisée", "etat": "Excellent état", "prix": "35 €", "available": True},
+    "8": {"name": "Tee-Shirt Nike Dri-Fit (Rouge)", "taille": "Non précisée", "etat": "Excellent état", "prix": "30 €", "available": True},
+    "9": {"name": "Sweat Nike Tech Fleece (Noir)", "taille": "S", "etat": "Excellent état", "prix": "70 €", "available": True},
+    "10": {"name": "Pantalon Nike Phenom Elite Poche Noir", "taille": "S", "etat": "8/10", "prix": "80 €", "available": True}
 }
 
 def get_main_keyboard():
@@ -72,6 +74,7 @@ def get_main_keyboard():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
+    known_users.add(user_id)
 
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
@@ -96,9 +99,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "show_catalog":
         text = "🔥 STOCK ACTUEL (Sape Running / Streetwear) 🔥\n\n"
         for item_id, data in CATALOG.items():
-            text += f"#{item_id} - {data['name']}\n"
-            text += f"   • Taille : {data['taille']} | État : {data['etat']} | {data['prix']}\n\n"
-        text += "👉 Pour réserver, envoie # suivi du numéro (ex: #1)."
+            status = "🔴 [ÉPUISÉ]" if not data["available"] else f"• Taille : {data['taille']} | État : {data['etat']} | {data['prix']}"
+            text += f"#{item_id} - {data['name']}\n   {status}\n\n"
+        text += "👉 Pour réserver un article disponible, envoie # suivi du numéro (ex: #1)."
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data == "show_referral":
@@ -126,18 +129,77 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
+    # Prise en charge par un membre du staff admin
+    elif query.data == "claim_order":
+        admin_name = query.from_user.first_name
+        new_text = query.message.text + f"\n\n✅ Pris en charge par {admin_name}"
+        await query.edit_message_text(text=new_text, reply_markup=None)
+
+# Fonction 1 : Gestion des stocks par commande /vendu ou /resto
+async def cmd_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+
+    if context.args and context.args[0] in CATALOG:
+        item_id = context.args[0]
+        CATALOG[item_id]["available"] = False
+        await update.message.reply_text(f"❌ Article #{item_id} ({CATALOG[item_id]['name']}) marqué comme VENDU.")
+    else:
+        await update.message.reply_text("Utilisation : `/vendu <numéro>` (ex: `/vendu 2`)", parse_mode="Markdown")
+
+async def cmd_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+
+    if context.args and context.args[0] in CATALOG:
+        item_id = context.args[0]
+        CATALOG[item_id]["available"] = True
+        await update.message.reply_text(f"✅ Article #{item_id} ({CATALOG[item_id]['name']}) remis EN STOCK.")
+    else:
+        await update.message.reply_text("Utilisation : `/resto <numéro>` (ex: `/resto 2`)", parse_mode="Markdown")
+
+# Fonction 3 : Broadcast d'annonces à tous les clients
+async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+
+    message = " ".join(context.args)
+    if not message:
+        await update.message.reply_text("Utilisation : `/annonce Votre message ici`", parse_mode="Markdown")
+        return
+
+    count = 0
+    broadcast_text = f"📢 **ANNONCE IDF RUNNING SHOP**\n\n{message}"
+    for user_id in known_users:
+        try:
+            await context.bot.send_message(chat_id=user_id, text=broadcast_text, parse_mode="Markdown")
+            count += 1
+        except Exception:
+            continue
+
+    await update.message.reply_text(f"🚀 Annonce envoyée à {count} client(s).")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
         return
 
     text = update.message.text.strip()
     user = update.effective_user
+    known_users.add(user.id)
 
     if text.startswith("#") and text[1:].isdigit():
         item_id = text[1:]
         if item_id in CATALOG:
             item = CATALOG[item_id]
             
+            # Vérification du stock
+            if not item["available"]:
+                await update.message.reply_text(
+                    f"❌ L'article #{item_id} est actuellement épuisé !", 
+                    reply_markup=get_main_keyboard()
+                )
+                return
+
             has_valid_ref = False
             referrer_id = referrals.get(user.id)
             if referrer_id and user.id in user_join_dates:
@@ -153,6 +215,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(confirm_text, reply_markup=get_main_keyboard())
 
+            # Fonction 2 : Alerte admin avec bouton de suivi
             username_str = f"@{user.username}" if user.username else "Aucun pseudo"
             admin_alert = (
                 "🚨 NOUVELLE INTERACTION ARTICLE\n\n"
@@ -163,8 +226,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if has_valid_ref:
                 admin_alert += f"\n🎁 Alerte Parrainage : Arrivé via parrain {referrer_id} depuis moins de 20j."
 
+            claim_keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏳ Prendre en charge", callback_data="claim_order")]
+            ])
+
             try:
-                await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_alert)
+                await context.bot.send_message(
+                    chat_id=ADMIN_GROUP_ID, 
+                    text=admin_alert, 
+                    reply_markup=claim_keyboard
+                )
             except Exception as e:
                 logging.error(f"Erreur envoi groupe admin ({ADMIN_GROUP_ID}): {e}")
 
@@ -177,6 +248,9 @@ def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("vendu", cmd_vendu))
+    app.add_handler(CommandHandler("resto", cmd_resto))
+    app.add_handler(CommandHandler("annonce", cmd_annonce))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
