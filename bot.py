@@ -17,16 +17,16 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# Variables d'environnement / Configuration
+# Variables d'environnement
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", "-1003956183527"))
+ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", "-3956183527"))
 CREATOR_USERNAME = os.environ.get("CREATOR_USERNAME", "@idf_runningshop")
 
 WAITING_ORDER_DETAILS, WAITING_RECEIPT = range(2)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Commande /start - Affiche le menu principal."""
+    """Affiche le menu principal."""
     keyboard = [
         [InlineKeyboardButton("💬 Parler au créateur", url=f"https://t.me/{CREATOR_USERNAME.replace('@', '')}")],
         [InlineKeyboardButton("🛍️ Passer une commande", callback_data="start_order")]
@@ -50,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Démarre le processus de commande (Étape 1/2)."""
+    """Étape 1 : Demande des détails de livraison."""
     query = update.callback_query
     await query.answer()
 
@@ -70,7 +70,7 @@ async def start_order_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def receive_order_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reçoit les détails de la commande et demande le reçu (Étape 2/2)."""
+    """Étape 2 : Enregistrement et demande du reçu."""
     context.user_data["order_details"] = update.message.text
 
     keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="main_menu")]]
@@ -86,23 +86,17 @@ async def receive_order_details(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reçoit la photo du reçu et la transfère au groupe admin."""
+    """Envoie la photo directement au groupe d'administration."""
     photo_file_id = update.message.photo[-1].file_id
     order_details = context.user_data.get("order_details", "Non renseigné")
     user = update.effective_user
 
-    # Confirmation à l'utilisateur
-    await update.message.reply_text(
-        "⚡ **Reçu bien transmis aux admins !** Tu recevras une confirmation ici.",
-        parse_mode="Markdown"
-    )
-
-    # Notification dans le groupe admin
+    # Formatage HTML propre et sécurisé
     admin_caption = (
-        f"🚨 **NOUVELLE COMMANDE** 🚨\n\n"
-        f"👤 **Client :** {user.full_name} (@{user.username if user.username else 'Sans pseudo'})\n"
-        f"🆔 **ID Telegram :** `{user.id}`\n\n"
-        f"📦 **Détails de la commande :**\n{order_details}"
+        f"🚨 <b>NOUVELLE COMMANDE</b> 🚨\n\n"
+        f"👤 <b>Client :</b> {user.full_name} (@{user.username if user.username else 'Sans pseudo'})\n"
+        f"🆔 <b>ID Telegram :</b> <code>{user.id}</code>\n\n"
+        f"📦 <b>Détails de la commande :</b>\n{order_details}"
     )
 
     keyboard = [
@@ -113,22 +107,26 @@ async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    try:
-        await context.bot.send_photo(
-            chat_id=ADMIN_GROUP_ID,
-            photo=photo_file_id,
-            caption=admin_caption,
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logging.error(f"Erreur lors de l'envoi au groupe admin: {e}")
+    # Transmission au groupe admin
+    await context.bot.send_photo(
+        chat_id=ADMIN_GROUP_ID,
+        photo=photo_file_id,
+        caption=admin_caption,
+        reply_markup=reply_markup,
+        parse_mode="HTML"
+    )
+
+    # Message de confirmation au client
+    await update.message.reply_text(
+        "⚡ **Reçu bien transmis aux admins !** Tu recevras une confirmation ici.",
+        parse_mode="Markdown"
+    )
 
     return ConversationHandler.END
 
 
 async def admin_decision_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Gère la décision d'un administrateur (Valider/Refuser)."""
+    """Traitement de la décision admin (Valider / Refuser)."""
     query = update.callback_query
     await query.answer()
 
@@ -142,7 +140,8 @@ async def admin_decision_callback(update: Update, context: ContextTypes.DEFAULT_
             text="✅ **Ta commande a été validée par un administrateur !** Elle sera traitée sous peu."
         )
         await query.edit_message_caption(
-            caption=f"{query.message.caption}\n\n✅ **COMMANDE VALIDÉE** par @{query.from_user.username}"
+            caption=f"{query.message.caption}\n\n✅ **COMMANDE VALIDÉE** par @{query.from_user.username}",
+            parse_mode="HTML"
         )
     elif action == "reject":
         await context.bot.send_message(
@@ -150,13 +149,9 @@ async def admin_decision_callback(update: Update, context: ContextTypes.DEFAULT_
             text="❌ **Ta commande a été refusée.** Contacte le support pour plus de précisions."
         )
         await query.edit_message_caption(
-            caption=f"{query.message.caption}\n\n❌ **COMMANDE REFUSÉE** par @{query.from_user.username}"
+            caption=f"{query.message.caption}\n\n❌ **COMMANDE REFUSÉE** par @{query.from_user.username}",
+            parse_mode="HTML"
         )
-
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Annule la conversation en cours."""
-    return await start(update, context)
 
 
 def main():
@@ -165,7 +160,6 @@ def main():
 
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Gestionnaire de conversation pour le flux de commande
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_order_callback, pattern="^start_order$")],
         states={
