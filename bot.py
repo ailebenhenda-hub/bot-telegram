@@ -28,7 +28,7 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens officiels & Comptes demandés
+# Liens officiels propres (sans espaces cassés)
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
@@ -68,10 +68,22 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ PROPRE & COMPLÈTE ---
+# --- IA GROQ & SUIVI EN TEMPS RÉEL DANS LE GROUPE ADMIN ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     user_message = update.message.text
     
+    # 1. On retranscrit le message du client dans le groupe admin en temps réel
+    try:
+        client_log = (
+            f"💬 **[Discussion Live] Client :** {user.first_name} (@{user.username or 'N/A'})\n"
+            f"🆔 `{user.id}`\n"
+            f"✉️ *Message :* \"{user_message}\""
+        )
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=client_log, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Erreur log client groupe admin : {e}")
+
     system_prompt = (
         "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
         "INTERDICTION FORMELLE d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'.\n\n"
@@ -81,7 +93,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "LIENS ET CONTACTS OFFICIELS À FOURNIR SI ON TE LES DEMANDE :\n"
+        "LIENS ET CONTACTS OFFICIELS :\n"
         f"- Telegram privé / Créateur : {PRIVATE_TELEGRAM_LINK}\n"
         f"- Groupe Admin / Staff : {ADMIN_GROUP_LINK}\n"
         f"- Snapchat : {SNAPCHAT_LINK}\n"
@@ -90,6 +102,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"- Paiement Revolut : {REVOLUT_PAYMENT_LINK}\n\n"
         "MODE DE VENTE : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon disponibilités)."
     )
+    
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -97,10 +110,24 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temperature=0.1, max_tokens=300
         )
         reply_text = completion.choices[0].message.content
+        
+        # Envoi de la réponse au client
         await update.message.reply_text(reply_text)
+
+        # 2. On retranscrit la réponse de l'IA dans le groupe admin pour que vous suiviez tout
+        try:
+            ai_log = (
+                f"🤖 **[Discussion Live] Bot IA -> {user.first_name}** :\n"
+                f"💬 *Réponse :* \"{reply_text}\""
+            )
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=ai_log, parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Erreur log IA groupe admin : {e}")
+
     except Exception as e:
         logging.error(f"Erreur IA : {e}")
-        await update.message.reply_text("Un problème est survenu, contacte directement le créateur ici : " + PRIVATE_TELEGRAM_LINK)
+        fallback_msg = f"Un problème est survenu, contacte directement le créateur ici : {PRIVATE_TELEGRAM_LINK}"
+        await update.message.reply_text(fallback_msg)
 
 # --- COMMANDES PRINCIPALES ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -295,7 +322,6 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
         ]
     ]
     
-    # Envoi vers le groupe admin conservé uniquement pour les reçus de commande (comme demandé pour tout recevoir)
     try:
         await context.bot.send_photo(
             chat_id=ADMIN_GROUP_ID,
@@ -305,7 +331,7 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
             parse_mode="Markdown"
         )
     except Exception as e:
-        logging.error(f"Erreur envoi admin (Vérifie l'ID du groupe `-3956183527` ou les droits admin du bot) : {e}")
+        logging.error(f"Erreur envoi admin : {e}")
     
     await update.message.reply_text("🎉 **Reçu bien reçu !** L'équipe a été notifiée.")
     return ConversationHandler.END
@@ -358,7 +384,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot nettoyé et relancé avec succès !")
+    print("Bot redémarré avec suivi en direct des discussions et liens corrigés !")
     app.run_polling()
 
 if __name__ == "__main__":
