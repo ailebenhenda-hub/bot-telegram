@@ -8,6 +8,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Identifiants du shop
 ADMIN_GROUP_ID = -3956183527
+SELLER_CHAT_ID = 8107706527
 SELLER_USERNAME = "@Shvppeur"
 
 # Configuration des logs
@@ -46,14 +47,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Reponse automatique simple sans IA
+# Réponse automatique envoyant la fiche contact
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ignore les messages dans le groupe admin
     if update.effective_chat.id == ADMIN_GROUP_ID:
         return
 
-    reply_text = f"Pour toute question, commande ou réservation, contacte directement {SELLER_USERNAME} !"
+    reply_text = f"Pour toute question, commande ou réservation, contacte directement le vendeur :"
     await update.message.reply_text(reply_text, reply_markup=get_main_keyboard())
+    
+    # Envoi direct de la fiche contact liée au Chat ID du vendeur
+    await context.bot.send_contact(
+        chat_id=update.effective_chat.id,
+        first_name="Shvppeur 🕷️",
+        user_id=SELLER_CHAT_ID,
+        phone_number="" # Facultatif
+    )
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
