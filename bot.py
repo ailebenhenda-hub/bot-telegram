@@ -74,13 +74,16 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ ---
+# --- IA GROQ (MIS À JOUR) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
-        "Tu es l'assistant IA de 'IDF Running // V.I.P'. Tu aides les clients pour leurs choix de tailles, "
-        "les infos sur les envois Colissimo, et les paiements via Revolut.me/shvppeur_corp. "
-        "Réponds de manière amicale, concise et professionnelle."
+        "Tu es l'assistant IA de 'IDF Running // V.I.P'. "
+        "RÈGLE ABSOLUE : Tu ne vends QUE des vêtements de running et de sport branchés pour jeunes. "
+        "Tu ne vends JAMAIS de chaussures ni d'accessoires. "
+        "Tu proposes notamment des pièces phares : tenues Nike Aeroswift, Nike Phenom Elite, vestes Windrunner, Under Armour hybride ColdGear, Nike Trail, etc. "
+        "Tu aides les clients pour leurs choix de tailles, les infos sur les envois Colissimo, et les paiements via Revolut.me/shvppeur_corp. "
+        "Réponds de manière amicale, concise, urbaine et professionnelle."
     )
     try:
         completion = groq_client.chat.completions.create(
@@ -236,7 +239,7 @@ async def ask_for_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_blacklisted(query.from_user.id):
         await query.message.reply_text("⛔ Accès refusé.")
         return ConversationHandler.END
-    await query.message.reply_text("📝 **Détaille ta commande** (ex: Tech Fleece Gris + Taille M) :", parse_mode="Markdown")
+    await query.message.reply_text("📝 **Détaille ta commande** (ex: Tenue Aeroswift + Taille M) :", parse_mode="Markdown")
     return ENTERING_CART
 
 async def save_cart_items(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -335,10 +338,10 @@ def main():
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(admin_action_handler, pattern="^admin_"))
-    app.add_handler(CallbackQueryHandler(button_handler))  # <-- Indispensable pour gérer les boutons du menu !
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec menus interactifs, Vinted, Main Propre et IA !")
+    print("Bot opérationnel avec le bon catalogue de vêtements !")
     app.run_polling()
 
 if __name__ == "__main__":
