@@ -27,7 +27,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", "-1003956183527"))
-CREATOR_USERNAME = "@shvppeur_bot"
+CREATOR_USERNAME = "@idf_runningshop"
 
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
