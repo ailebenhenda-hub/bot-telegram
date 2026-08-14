@@ -11,6 +11,8 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
@@ -141,12 +143,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u_data["banned"]:
         return
 
-    if context.args and context.args[0].isdigit():
-        referrer_id = int(context.args[0])
-        if referrer_id != user.id and user.id not in referrals:
-            referrals[user.id] = referrer_id
-            user_join_dates[user.id] = datetime.now()
-
     welcome_msg = (
         f"👋 Bienvenue {user.first_name} sur IDF Running Shop !\n\n"
         "Boutique indépendante streetwear & vêtements running. 🔥\n"
@@ -156,13 +152,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard())
 
-# --- 4. FILTRE PAR TAILLE & CALLBACKS ---
+# --- CALLBACKS & FIDÉLITÉ (200 PTS = -10€) ---
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     clean_reservations()
 
     user_id = query.from_user.id
+    admin_name = query.from_user.first_name
     u_data = get_user(user_id)
     if u_data["banned"]:
         return
@@ -199,27 +196,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += "Aucun article disponible pour cette taille."
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
-    elif query.data == "show_referral":
-        bot_info = await context.bot.get_me()
-        ref_link = f"https://t.me/{bot_info.username}?start={query.from_user.id}"
-        text = (
-            "🎁 PROGRAMME DE PARRAINAGE\n\n"
-            f"Partage ton lien à tes potes :\n{ref_link}\n\n"
-            "📌 Règle : Si ton filleul passe commande dans les 20 jours suivant son arrivée, "
-            "tu reçois 5 € de réduction sur ta prochaine commande !"
-        )
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
-
-    # --- 6. PROGRAMME DE FIDÉLITÉ (120 pts = -10€) ---
     elif query.data == "show_points":
         pts = u_data["points"]
         text = (
             f"⭐ TES POINTS FIDÉLITÉ : {pts} pts\n\n"
             "• 1 € dépensé = 1 point gagné.\n"
-            "• Atteins 120 points pour débloquer -10 € sur ta commande !\n"
+            "• Atteins 200 points pour débloquer -10 € sur ta commande !\n"
         )
-        if pts >= 120:
-            text += "\n🎉 Tu as 120 pts ! Envoie un MP au vendeur pour utiliser tes -10 € !"
+        if pts >= 200:
+            text += "\n🎉 Tu as atteint 200 pts ! Envoie un MP au vendeur pour utiliser tes -10 € !"
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data == "show_info":
@@ -233,17 +218,37 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard())
 
     elif query.data.startswith("claim_"):
-        admin_name = query.from_user.first_name
         new_text = query.message.text + f"\n\n✅ Pris en charge par {admin_name}"
         await query.edit_message_text(text=new_text, reply_markup=None)
 
+    # Validation du paiement avec attribution exacte du montant en points
     elif query.data.startswith("confirm_pay_"):
-        target_id = int(query.data.split("_")[2])
-        add_points(target_id, 50)
-        await context.bot.send_message(chat_id=target_id, text="✅ Ton paiement a été validé par l'équipe ! Tes points de fidélité ont été crédités.")
-        await query.edit_message_text(text=query.message.text + "\n\n✅ PAIEMENT VALIDÉ", reply_markup=None)
+        parts = query.data.split("_")
+        target_id = int(parts[2])
+        price = float(parts[3]) if len(parts) > 3 else 0
 
-# --- 3. RÉSERVATION 15 MIN & RECEPTION DES MESSAGES / PHOTOS ---
+        add_points(target_id, int(price))
+        await context.bot.send_message(
+            chat_id=target_id, 
+            text=f"✅ Ton paiement de {int(price)} € a été validé ! Tu as gagné +{int(price)} points de fidélité. 🎁"
+        )
+        new_text = query.message.caption if query.message.caption else query.message.text
+        new_text += f"\n\n✅ PAIEMENT VALIDÉ PAR {admin_name} (+{int(price)} pts)"
+        await query.edit_message_caption(caption=new_text, reply_markup=None)
+
+    # Refus du paiement
+    elif query.data.startswith("refuse_pay_"):
+        parts = query.data.split("_")
+        target_id = int(parts[2])
+
+        await context.bot.send_message(
+            chat_id=target_id, 
+            text="❌ Ton reçu de paiement n'a pas pu être validé. Merci de contacter le vendeur en MP (@idf_runningshop)."
+        )
+        new_text = query.message.caption if query.message.caption else query.message.text
+        new_text += f"\n\n❌ PAIEMENT REFUSÉ PAR {admin_name}"
+        await query.edit_message_caption(caption=new_text, reply_markup=None)
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clean_reservations()
     if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
@@ -255,16 +260,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u_data["banned"]:
         return
 
-    # --- 8. CAPTURE D'ÉCRAN DE PAIEMENT ---
+    # Gestion de la photo de paiement
     if update.message.photo:
         photo = update.message.photo[-1].file_id
+        
+        # Chercher s'il y a une réservation en cours pour connaître le montant exact
+        item_price = 0
+        for item_id, res_data in reservations.items():
+            if res_data["user_id"] == user.id:
+                item_price = CATALOG[item_id]["prix"]
+                break
+
         admin_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}")]
+            [
+                InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{item_price}"),
+                InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")
+            ]
         ])
         await context.bot.send_photo(
             chat_id=ADMIN_GROUP_ID,
             photo=photo,
-            caption=f"💳 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username})\nID : {user.id}",
+            caption=f"💳 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username})\nID : {user.id}\nMontant estimé : {item_price} €",
             reply_markup=admin_kb
         )
         await update.message.reply_text("✅ Reçu transmis à l'équipe. On valide ta commande rapidement !")
@@ -300,7 +316,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             claim_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⏳ Prise en charge", callback_data=f"claim_{item_id}")]])
             await context.bot.send_message(
                 chat_id=ADMIN_GROUP_ID,
-                text=f"🚨 NOUVELLE RÉSERVATION (15 min)\nClient : {user.first_name} (@{user.username})\nArticle : #{item_id} - {item['name']}",
+                text=f"🚨 NOUVELLE RÉSERVATION (15 min)\nClient : {user.first_name} (@{user.username})\nArticle : #{item_id} - {item['name']} ({item['prix']} €)",
                 reply_markup=claim_kb
             )
             return
@@ -341,74 +357,45 @@ async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
             continue
     await update.message.reply_text(f"🚀 Annonce envoyée à {count} client(s).")
 
-# --- 2. EXPORT EXCEL / CSV ---
-async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    conn = sqlite3.connect("shop.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM sales")
-    rows = cursor.fetchall()
-    conn.close()
-
-    csv_data = "ID,User_ID,Article_ID,Nom,Prix,Date\n"
-    for r in rows:
-        csv_data += f"{r[0]},{r[1]},{r[2]},{r[3]},{r[4]},{r[5]}\n"
-
-    with open("ventes.csv", "w", encoding="utf-8") as f:
-        f.write(csv_data)
-
-    await context.bot.send_document(chat_id=ADMIN_GROUP_ID, document=open("ventes.csv", "rb"), caption="📊 Bilan des ventes Excel/CSV")
-
-# --- 10. ANTI-SPAM & BAN ---
-async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if context.args:
-        target_id = int(context.args[0])
-        set_ban(target_id, 1)
-        await update.message.reply_text(f"🚫 L'utilisateur {target_id} a été banni.")
-
-async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if context.args:
-        target_id = int(context.args[0])
-        set_ban(target_id, 0)
-        await update.message.reply_text(f"✅ L'utilisateur {target_id} a été débanni.")
-
-# --- 5. GÉNÉRATION DE FACTURE ---
+# --- GÉNÉRATION DE FACTURE PDF RÉELLE ---
 async def cmd_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
-    if len(context.args) >= 2:
-        client_name = context.args[0]
-        montant = context.args[1]
-        facture = (
-            "📄 **FACTURE - IDF RUNNING SHOP**\n"
-            f"Client : {client_name}\n"
-            f"Date : {datetime.now().strftime('%d/%m/%Y')}\n"
-            f"Montant Total : {montant} €\n"
-            "Statut : PAIEMENT VALIDÉ\n\n"
-            "Merci pour votre confiance !"
-        )
-        await update.message.reply_text(facture, parse_mode="Markdown")
 
-# --- 7. SUIVI COLISSIMO ---
-async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if len(context.args) >= 2:
-        target_id = int(context.args[0])
-        tracking_num = context.args[1]
-        msg = f"📦 **SUIVI DE TON COLIS**\n\nTon numéro de suivi Colissimo : `{tracking_num}`\nSuis ton colis ici : https://www.laposte.fr/outils/suivre-vos-envois"
-        try:
-            await context.bot.send_message(chat_id=target_id, text=msg, parse_mode="Markdown")
-            await update.message.reply_text(f"✅ Numéro de suivi envoyé au client {target_id}.")
-        except Exception as e:
-            await update.message.reply_text(f"❌ Impossible d'envoyer le MP : {e}")
+    if len(context.args) >= 3:
+        client_name = context.args[0]
+        article_name = context.args[1]
+        montant = context.args[2]
+
+        pdf_path = f"facture_{client_name}.pdf"
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(200, 750, "IDF RUNNING SHOP")
+        
+        c.setFont("Helvetica", 12)
+        c.drawString(50, 700, f"Facture N° : {datetime.now().strftime('%Y%m%d%H%M')}")
+        c.drawString(50, 680, f"Date : {datetime.now().strftime('%d/%m/%Y')}")
+        c.drawString(50, 660, f"Client : {client_name}")
+        
+        c.drawString(50, 610, "--------------------------------------------------------")
+        c.drawString(50, 590, f"Article : {article_name}")
+        c.drawString(50, 570, f"Montant Total : {montant} €")
+        c.drawString(50, 550, "Statut : PAIEMENT VALIDÉ")
+        c.drawString(50, 530, "--------------------------------------------------------")
+        
+        c.setFont("Helvetica-Oblique", 10)
+        c.drawString(50, 480, "Merci pour votre achat chez IDF Running Shop !")
+        c.save()
+
+        await context.bot.send_document(
+            chat_id=ADMIN_GROUP_ID,
+            document=open(pdf_path, "rb"),
+            caption=f"📄 Facture PDF générée pour {client_name}"
+        )
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
     else:
-        await update.message.reply_text("Utilisation : `/suivi ID_CLIENT NUMERO_COLISSIMO`", parse_mode="Markdown")
+        await update.message.reply_text("Utilisation : `/facture NomClient NomArticle Montant`\nExemple : `/facture Lucas PantalonTrail 60`", parse_mode="Markdown")
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -417,11 +404,7 @@ def main():
     app.add_handler(CommandHandler("vendu", cmd_vendu))
     app.add_handler(CommandHandler("resto", cmd_resto))
     app.add_handler(CommandHandler("annonce", cmd_annonce))
-    app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CommandHandler("ban", cmd_ban))
-    app.add_handler(CommandHandler("unban", cmd_unban))
     app.add_handler(CommandHandler("facture", cmd_facture))
-    app.add_handler(CommandHandler("suivi", cmd_suivi))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
