@@ -30,12 +30,11 @@ DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
 # Liens officiels & Comptes
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
-SUPPORT_LINK = "https://t.me/idfrunningvip"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
-CREATOR_DM_LINK = "https://t.me/idf_runningshop"
+CREATOR_DM_LINK = "https://t.me/idf_runningshop"  # Uniquement si le créateur est demandé
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -68,17 +67,19 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ & TRANSFERT ADMIN ---
+# --- IA GROQ & LOGIQUE ADMIN / CRÉATEUR ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_message = update.message.text
     lower_msg = user_message.lower()
     
-    # Détection si l'utilisateur demande un humain ou de l'aide -> Alerte silencieuse dans ton canal admin
-    if any(keyword in lower_msg for keyword in ["humain", "parler à quelqu'un", "aide", "créateur", "responsable", "admin", "s'il te plaît", "aidez-moi", "canal admin"]):
+    is_admin_request = any(kw in lower_msg for kw in ["admin", "aide", "renseignement", "humain", "problème", "support"])
+    is_asking_creator = any(kw in lower_msg for kw in ["créateur", "boss", "propriétaire", "fondateur"])
+
+    if is_admin_request and not is_asking_creator:
         try:
             alert_text = (
-                f"🚨 **ALERTE CLIENT / SUPPORT** 🚨\n\n"
+                f"🚨 **ALERTE GROUPE ADMIN : Client en attente !** 🚨\n\n"
                 f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
                 f"🆔 **ID :** `{user.id}`\n"
                 f"💬 **Message :** \"{user_message}\""
@@ -97,12 +98,13 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (LIENS & HUMAIN) : Si on te demande un humain, de l'aide, à parler au créateur, un canal admin ou un lien pour te DM, tu DOIS obligatoirement donner ton lien personnel direct : "
-        f"{CREATOR_DM_LINK} . "
+        "RÈGLE 2 (ADMIN VS CRÉATEUR) :\n"
+        "- Si l'utilisateur demande à parler à un ADMIN, de l'aide ou du support : dis-lui clairement qu'un administrateur a été prévenu et qu'il va lui répondre ici.\n"
+        f"- Si l'utilisateur demande explicitement le CRÉATEUR ou le boss : donne ton lien personnel direct ({CREATOR_DM_LINK}).\n"
         f"Si on te demande ton Snapchat, ton Vinted ou ton TikTok, donne respectivement : Snapchat ({SNAPCHAT_LINK}), Vinted ({VINTED_LINK}), TikTok ({TIKTOK_LINK}).\n\n"
-        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). "
+        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon disponibilités). "
         "Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
-        "Sois direct, ultra-clair et donne immédiatement les informations demandées sans inventer de règles et sans dire que tu ne sais pas."
+        "Sois direct, ultra-clair et ne donne pas ton lien personnel si on demande juste un admin."
     )
     try:
         completion = groq_client.chat.completions.create(
@@ -110,12 +112,17 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
             temperature=0.1, max_tokens=250
         )
-        await update.message.reply_text(completion.choices[0].message.content)
+        reply_text = completion.choices[0].message.content
+        
+        if is_admin_request and not is_asking_creator and "administrateur" not in reply_text.lower():
+            reply_text = "Un administrateur a été notifié de ta demande et va te répondre directement ici très rapidement 🔔"
+
+        await update.message.reply_text(reply_text)
     except Exception as e:
         logging.error(f"Erreur IA : {e}")
-        await update.message.reply_text(f"Besoin d'un humain ? Viens directement en DM ici : {CREATOR_DM_LINK}")
+        await update.message.reply_text("Un administrateur a été prévenu, il revient vers toi au plus vite !")
 
-# --- MENU PRINCIPAL ---
+# --- COMMANDES PRINCIPALES (/start, /menu, /aide) ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or is_blacklisted(user.id):
@@ -138,7 +145,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📏 Guide des tailles", callback_data="size_guide")],
         [InlineKeyboardButton("🚚 Suivre mon colis", callback_data="track_parcel")],
         [InlineKeyboardButton("✅ J'ai effectué mon paiement", callback_data="paid")],
-        [InlineKeyboardButton("💬 Parler au Créateur (DM)", url=CREATOR_DM_LINK)],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -148,6 +154,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.message.edit_text(welcome_message, reply_markup=reply_markup, parse_mode="Markdown")
     
     return ConversationHandler.END
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start(update, context)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    # Alerte les admins pour toute demande d'aide via la commande /aide
+    try:
+        alert_text = (
+            f"🚨 **ALERTE GROUPE ADMIN (/aide demandé) !** 🚨\n\n"
+            f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
+            f"🆔 **ID :** `{user.id}`"
+        )
+        await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_text, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Erreur alerte admin groupe : {e}")
+
+    await update.message.reply_text(
+        "🆘 **Support IDF Running // V.I.P**\n\n"
+        "Un administrateur a été prévenu de ta demande et va te répondre directement ici dans les plus brefs délais 🔔"
+    )
 
 # --- GESTION DES BOUTONS INTERACTIFS ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -201,10 +228,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         link = f"https://t.me/{context.bot.username}?start=ref_{user_id}"
         count = referral_counts.get(user_id, 0)
         text = f"🤝 **Programme de Parrainage**\n\nPartage ton lien personnel :\n`{link}`\n\n📊 Filleuls validés : `{count}`"
-        kbd = [
-            [InlineKeyboardButton("💬 Contacter le créateur", url=CREATOR_DM_LINK)],
-            [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
-        ]
+        kbd = [[InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "promo_codes":
@@ -224,11 +248,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "hand_delivery":
-        text = "🤝 **Remise en main propre**\n\nDisponible en Île-de-France (principalement dans le 93 et en gares selon mes disponibilités). Contacte-moi pour fixer les détails :"
-        kbd = [
-            [InlineKeyboardButton("💬 Parler au Créateur", url=CREATOR_DM_LINK)],
-            [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
-        ]
+        text = "🤝 **Remise en main propre**\n\nDisponible en Île-de-France (principalement dans le 93 et en gares selon mes disponibilités)."
+        kbd = [[InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "my_orders":
@@ -327,7 +348,7 @@ async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if "admin_accept_" in data:
         client_id = int(data.split("_")[2])
-        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **STATUT : VALIDÉ**", parse_mode="Markdown")
+        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **STATUT : VALIDÉ**", parse_Mode="Markdown")
         try:
             await context.bot.send_message(chat_id=client_id, text="✅ Paiement validé ! On gère l'envoi ou la remise en main propre.")
         except Exception:
@@ -357,11 +378,14 @@ def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu_command))
+    app.add_handler(CommandHandler("aide", help_command))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(admin_action_handler, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot 100% blindé : alerte admin silencieuse + lien direct créateur sans bug !")
+    print("Bot opérationnel avec /start, /menu et /aide configurés !")
     app.run_polling()
 
 if __name__ == "__main__":
