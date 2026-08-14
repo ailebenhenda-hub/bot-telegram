@@ -74,14 +74,15 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (MIS À JOUR) ---
+# --- IA GROQ (MIS À JOUR - STYLE QUOTIDIEN / STREETWEAR) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
         "Tu es l'assistant IA de 'IDF Running // V.I.P'. "
-        "RÈGLE ABSOLUE : Tu ne vends QUE des vêtements de running et de sport branchés pour jeunes. "
-        "Tu ne vends JAMAIS de chaussures ni d'accessoires. "
-        "Tu proposes notamment des pièces phares : tenues Nike Aeroswift, Nike Phenom Elite, vestes Windrunner, Under Armour hybride ColdGear, Nike Trail, etc. "
+        "RÈGLE ABSOLUE : Tu ne vends QUE des vêtements de style urbain, streetwear et de tous les jours (lifestyle/quotidien). "
+        "Ce n'est PAS pour faire du sport, de la course ou aller sur des pistes, c'est pour s'habiller au quotidien avec du style. "
+        "Tu proposes notamment des pièces tendances : ensembles Tech Fleece, tenues Nike Aeroswift, Nike Phenom Elite, vestes Windrunner, Under Armour hybride ColdGear, Nike Trail, sweats, hoodies, cargos, etc., portés pour la mode et le chill. "
+        "Interdit formellement de parler de pistes, de course, de run, d'entraînement ou de performance sportive. "
         "Tu aides les clients pour leurs choix de tailles, les infos sur les envois Colissimo, et les paiements via Revolut.me/shvppeur_corp. "
         "Réponds de manière amicale, concise, urbaine et professionnelle."
     )
@@ -105,7 +106,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_message = (
         "👋 **Bienvenue chez IDF Running // V.I.P 🔌** 🛒\n\n"
-        "Spécialiste de la revente de vêtements exclusifs.\n"
+        "Spécialiste de la revente de vêtements exclusifs et streetwear.\n"
         "Que souhaites-tu faire aujourd'hui ?"
     )
     keyboard = [
@@ -341,7 +342,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec le bon catalogue de vêtements !")
+    print("Bot opérationnel avec le catalogue lifestyle / streetwear quotidien !")
     app.run_polling()
 
 if __name__ == "__main__":
