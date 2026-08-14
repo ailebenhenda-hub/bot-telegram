@@ -403,13 +403,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Tech Fleece / Aviateur : Taille normalement (Prends ta taille habituelle).\n\n"
             "💬 Un doute ? Envoie ta taille/poids en MP à @idf_runningshop !"
         )
-        try:
-            await query.edit_message_text(
-                text=text,
-                reply_markup=get_main_keyboard(user_id)
-            )
-        except Exception:
-            pass
+        await query.edit_message_text(
+            text=text,
+            reply_markup=get_main_keyboard(user_id)
+        )
 
     elif query.data.startswith("alert_"):
         item_id = query.data.split("_")[1]
@@ -868,4 +865,61 @@ async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
     if context.args:
-        target_id = int(context.args
+        target_id = int(context.args[0])
+        get_user(target_id)
+        set_ban_status(target_id, 1)
+        await update.message.reply_text(
+            f"🚫 L'utilisateur `{target_id}` a été **BANNI**.",
+            parse_mode="Markdown",
+        )
+    else:
+        await update.message.reply_text(
+            "Utilisation : `/ban ID_CLIENT`", parse_mode="Markdown"
+        )
+
+
+async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    if context.args:
+        target_id = int(context.args[0])
+        get_user(target_id)
+        set_ban_status(target_id, 0)
+        await update.message.reply_text(
+            f"✅ L'utilisateur `{target_id}` a été **DÉBANNI**.",
+            parse_mode="Markdown",
+        )
+    else:
+        await update.message.reply_text(
+            "Utilisation : `/unban ID_CLIENT`", parse_mode="Markdown"
+        )
+
+
+def main():
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    job_queue = app.job_queue
+    if job_queue:
+        job_queue.run_repeating(check_reservations_job, interval=60, first=10)
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("vendu", cmd_vendu))
+    app.add_handler(CommandHandler("resto", cmd_resto))
+    app.add_handler(CommandHandler("annonce", cmd_annonce))
+    app.add_handler(CommandHandler("dropVIP", cmd_drop_vip))
+    app.add_handler(CommandHandler("facture", cmd_facture))
+    app.add_handler(CommandHandler("suivi", cmd_suivi))
+    app.add_handler(CommandHandler("points", cmd_points))
+    app.add_handler(CommandHandler("stats", cmd_stats))
+    app.add_handler(CommandHandler("ban", cmd_ban))
+    app.add_handler(CommandHandler("unban", cmd_unban))
+    app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(
+        MessageHandler(filters.ALL & ~filters.COMMAND, handle_message)
+    )
+
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
