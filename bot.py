@@ -1,188 +1,86 @@
 import os
 import logging
+from groq import Groq
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    ConversationHandler,
-    filters,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Configuration du logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Variables d'environnement
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", "-3956183527"))
-CREATOR_USERNAME = os.environ.get("CREATOR_USERNAME", "@idf_runningshop")
+ADMIN_GROUP_ID = -3956183527
+SELLER_USERNAME = "@Shvppeur"
 
-WAITING_ORDER_DETAILS, WAITING_RECEIPT = range(2)
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Affiche le menu principal."""
-    keyboard = [
-        [InlineKeyboardButton("💬 Parler au créateur", url=f"https://t.me/{CREATOR_USERNAME.replace('@', '')}")],
-        [InlineKeyboardButton("🛍️ Passer une commande", callback_data="start_order")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    welcome_text = (
-        "👋 **Bienvenue sur IDF Running Shop !**\n\n"
-        "Chaque invité validé vous apporte des réductions exclusives !\n\n"
-        "Que souhaitez-vous faire ?"
-    )
-    
-    if update.message:
-        await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
-    elif update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        await query.edit_message_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
-        
-    return ConversationHandler.END
-
-
-async def start_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Étape 1 : Demande des détails de livraison."""
-    query = update.callback_query
-    await query.answer()
-
-    keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="main_menu")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    step1_text = (
-        "📝 **Étape 1/2 : Détails de la commande**\n\n"
-        "Écris en un message :\n"
-        "1. Articles + Tailles\n"
-        "2. Mode de livraison (Colissimo 6€ ou Main propre)\n"
-        "3. Adresse ou Ville du rendez-vous"
-    )
-    
-    await query.edit_message_text(step1_text, reply_markup=reply_markup, parse_mode="Markdown")
-    return WAITING_ORDER_DETAILS
-
-
-async def receive_order_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Étape 2 : Enregistrement et demande du reçu."""
-    context.user_data["order_details"] = update.message.text
-
-    keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="main_menu")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    step2_text = (
-        "📸 **Étape 2/2 : Reçu Revolut**\n\n"
-        "Envoie maintenant la photo/capture d'écran de ton paiement Revolut."
-    )
-    
-    await update.message.reply_text(step2_text, reply_markup=reply_markup, parse_mode="Markdown")
-    return WAITING_RECEIPT
-
-
-async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Envoie la photo directement au groupe d'administration."""
-    photo_file_id = update.message.photo[-1].file_id
-    order_details = context.user_data.get("order_details", "Non renseigné")
-    user = update.effective_user
-
-    # Formatage HTML propre et sécurisé
-    admin_caption = (
-        f"🚨 <b>NOUVELLE COMMANDE</b> 🚨\n\n"
-        f"👤 <b>Client :</b> {user.full_name} (@{user.username if user.username else 'Sans pseudo'})\n"
-        f"🆔 <b>ID Telegram :</b> <code>{user.id}</code>\n\n"
-        f"📦 <b>Détails de la commande :</b>\n{order_details}"
-    )
-
+def get_main_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton("✅ Valider", callback_data=f"confirm_{user.id}"),
-            InlineKeyboardButton("❌ Refuser", callback_data=f"reject_{user.id}")
+            InlineKeyboardButton("🛒 Vinted", url="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98sYce7fxhO"),
+            InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/BW0Gzw9i"),
+        ],
+        [
+            InlineKeyboardButton("🎵 TikTok", url="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98sYce7fxhO"),
+            InlineKeyboardButton("📢 Canal VIP", url="https://t.me/idfrunningvip"),
+        ],
+        [
+            InlineKeyboardButton("💬 Avis & Retours", url="https://t.me/+q2HRbe-dBydlZWZk"),
+            InlineKeyboardButton("💳 Preuves Paiement", url="https://t.me/c/4339817330/8"),
+        ],
+        [
+            InlineKeyboardButton("📲 Contacter le vendeur", url="https://t.me/Shvppeur")
         ]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup(keyboard)
 
-    # Transmission au groupe admin
-    await context.bot.send_photo(
-        chat_id=ADMIN_GROUP_ID,
-        photo=photo_file_id,
-        caption=admin_caption,
-        reply_markup=reply_markup,
-        parse_mode="HTML"
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_name = update.effective_user.first_name
+    welcome_msg = (
+        f"👋 Bienvenue **{user_name}** sur **IDF Running Shop** !\n\n"
+        "Spécialiste running & streetwear en Île-de-France.\n"
+        "• Articles sélectionnés avec soin\n"
+        "• Envoi rapide ou remise en main propre\n\n"
+        "Que souhaites-tu faire ?"
+    )
+    await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id == ADMIN_GROUP_ID:
+        return
+
+    user_text = update.message.text
+    
+    if not groq_client:
+        await update.message.reply_text(f"Pour commander ou poser une question, contacte direct {SELLER_USERNAME}.", reply_markup=get_main_keyboard())
+        return
+
+    system_prompt = (
+        "Tu es l'assistant virtuel officiel d'idf_runningshop. "
+        "Ton ton est amical, professionnel et streetwear. "
+        "Tu aides pour les questions sur les vêtements, baskets, livraisons et remises en main propre en IDF. "
+        f"Pour tout achat ou négociation, renvoie vers {SELLER_USERNAME}."
     )
 
-    # Message de confirmation au client
-    await update.message.reply_text(
-        "⚡ **Reçu bien transmis aux admins !** Tu recevras une confirmation ici.",
-        parse_mode="Markdown"
-    )
-
-    return ConversationHandler.END
-
-
-async def admin_decision_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Traitement de la décision admin (Valider / Refuser)."""
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    action, user_id = data.split("_")
-    user_id = int(user_id)
-
-    if action == "confirm":
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="✅ **Ta commande a été validée par un administrateur !** Elle sera traitée sous peu."
+    try:
+        completion = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            model="llama-3.3-70b-versatile",
         )
-        await query.edit_message_caption(
-            caption=f"{query.message.caption}\n\n✅ **COMMANDE VALIDÉE** par @{query.from_user.username}",
-            parse_mode="HTML"
-        )
-    elif action == "reject":
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="❌ **Ta commande a été refusée.** Contacte le support pour plus de précisions."
-        )
-        await query.edit_message_caption(
-            caption=f"{query.message.caption}\n\n❌ **COMMANDE REFUSÉE** par @{query.from_user.username}",
-            parse_mode="HTML"
-        )
-
+        reply = completion.choices[0].message.content
+        await update.message.reply_text(reply, reply_markup=get_main_keyboard())
+    except Exception as e:
+        logging.error(f"Erreur Groq : {e}")
+        await update.message.reply_text(f"Une erreur est survenue. Contacte directement {SELLER_USERNAME} !", reply_markup=get_main_keyboard())
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise ValueError("TELEGRAM_TOKEN manquant !")
-
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_order_callback, pattern="^start_order$")],
-        states={
-            WAITING_ORDER_DETAILS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_order_details)
-            ],
-            WAITING_RECEIPT: [
-                MessageHandler(filters.PHOTO, receive_receipt)
-            ],
-        },
-        fallbacks=[
-            CallbackQueryHandler(start, pattern="^main_menu$"),
-            CommandHandler("start", start)
-        ],
-    )
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(start, pattern="^main_menu$"))
-    application.add_handler(CallbackQueryHandler(admin_decision_callback, pattern="^(confirm|reject)_"))
-
-    application.run_polling()
-
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
