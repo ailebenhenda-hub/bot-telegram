@@ -52,6 +52,15 @@ def init_db():
             user_id INTEGER PRIMARY KEY
         )
     """)
+    # Ajout de la table stats (Idée 3)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stats (
+            id INTEGER PRIMARY KEY,
+            total_sales INTEGER DEFAULT 0,
+            revenue REAL DEFAULT 0.0
+        )
+    """)
+    cursor.execute("INSERT OR IGNORE INTO stats (id, total_sales, revenue) VALUES (1, 0, 0.0)")
     conn.commit()
     conn.close()
 
@@ -211,11 +220,31 @@ CATALOG = {
 }
 
 
-def clean_reservations():
+# --- TÂCHE DE RELANCE AUTOMATIQUE (Idée 2) ---
+async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
-    expired = [k for k, v in reservations.items() if v["expires"] < now]
-    for k in expired:
-        del reservations[k]
+    for item_id, res in list(reservations.items()):
+        # Avertissement à 10 minutes (il reste 5 min avant expiration des 15 min)
+        if not res.get("warned_5min", False) and now >= res["expires"] - timedelta(minutes=5):
+            res["warned_5min"] = True
+            try:
+                await context.bot.send_message(
+                    chat_id=res["user_id"],
+                    text=f"⏳ Plus que 5 minutes pour régler ton article #{item_id} ({CATALOG[item_id]['name']}) avant qu'il ne soit remis en stock !"
+                )
+            except Exception:
+                pass
+        
+        # Expiration totale à 15 minutes
+        elif now >= res["expires"]:
+            del reservations[item_id]
+            try:
+                await context.bot.send_message(
+                    chat_id=res["user_id"],
+                    text=f"❌ Ta réservation pour l'article #{item_id} a expiré. Il est de nouveau disponible dans le catalogue."
+                )
+            except Exception:
+                pass
 
 
 def get_main_keyboard(user_id):
@@ -306,7 +335,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    clean_reservations()
 
     user_id = query.from_user.id
     admin_name = query.from_user.first_name
@@ -455,6 +483,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         price = float(parts[3]) if len(parts) > 3 else 0
 
         add_points(target_id, int(price))
+        
+        # Mise à jour des statistiques (Idée 3)
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE stats SET total_sales = total_sales + 1, revenue = revenue + ? WHERE id = 1", (price,))
+        conn.commit()
+        conn.close()
+
         await context.bot.send_message(
             chat_id=target_id,
             text=(
@@ -493,7 +529,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    clean_reservations()
     if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
         return
 
@@ -510,7 +545,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for item_id, res_data in reservations.items():
             if res_data["user_id"] == user.id:
                 raw_price = CATALOG[item_id]["prix"]
-                # CALCUL DE PRIX CORRECT (Port incl.)
                 total_price_with_shipping = (
                     raw_price + 6 if raw_price < 170 else raw_price
                 )
@@ -571,6 +605,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reservations[item_id] = {
                 "user_id": user.id,
                 "expires": datetime.now() + timedelta(minutes=15),
+                "warned_5min": False,
             }
 
             total_price = item["prix"] + 6 if item["prix"] < 170 else item["prix"]
@@ -829,6 +864,27 @@ async def cmd_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# --- NOUVELLE COMMANDE STATS (Idée 3) ---
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
+        return
+    
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT total_sales, revenue FROM stats WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+
+    sales, revenue = row if row else (0, 0.0)
+    
+    stats_text = (
+        "📊 **STATISTIQUES DE LA BOUTIQUE**\n\n"
+        f"• Ventes totales validées : **{sales}**\n"
+        f"• Chiffre d'affaires : **{revenue:.2f} €**"
+    )
+    await update.message.reply_text(stats_text, parse_mode="Markdown")
+
+
 async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
         return
@@ -866,6 +922,10 @@ async def cmd_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
+    # Intégration du JobQueue pour la relance automatique (Idée 2)
+    job_queue = app.job_queue
+    job_queue.run_repeating(check_reservations_job, interval=60, first=10)
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("vendu", cmd_vendu))
     app.add_handler(CommandHandler("resto", cmd_resto))
@@ -874,6 +934,7 @@ def main():
     app.add_handler(CommandHandler("facture", cmd_facture))
     app.add_handler(CommandHandler("suivi", cmd_suivi))
     app.add_handler(CommandHandler("points", cmd_points))
+    app.add_handler(CommandHandler("stats", cmd_stats))  # Ajout handler stats
     app.add_handler(CommandHandler("ban", cmd_ban))
     app.add_handler(CommandHandler("unban", cmd_unban))
     app.add_handler(CallbackQueryHandler(handle_callback))
