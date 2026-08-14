@@ -1,2 +1,4 @@
-python-telegram-bot
-groq
+python-telegram-bot==21.4
+psycopg2-binary==2.9.9
+groq==0.18.0
+pillow==10.4.0
