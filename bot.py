@@ -8,13 +8,12 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Identifiants du shop
 ADMIN_GROUP_ID = -3956183527
-SELLER_CHAT_ID = 8107706527
-SELLER_USERNAME = "@Shvppeur"
+SELLER_USERNAME = "idf_runningshop"  # Ton username Telegram direct (sans le @)
 
 # Configuration des logs
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# Menu interactif avec tous tes liens
+# Menu interactif
 def get_main_keyboard():
     keyboard = [
         [
@@ -30,7 +29,7 @@ def get_main_keyboard():
             InlineKeyboardButton("💳 Preuves Paiement", url="https://t.me/c/4339817330/8"),
         ],
         [
-            InlineKeyboardButton("📲 Contacter le vendeur", url="https://t.me/Shvppeur")
+            InlineKeyboardButton("📲 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -47,22 +46,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Réponse automatique envoyant la fiche contact
+# Réponse automatique simple
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ignore les messages dans le groupe admin
     if update.effective_chat.id == ADMIN_GROUP_ID:
         return
 
-    reply_text = f"Pour toute question, commande ou réservation, contacte directement le vendeur :"
-    await update.message.reply_text(reply_text, reply_markup=get_main_keyboard())
-    
-    # Envoi direct de la fiche contact liée au Chat ID du vendeur
-    await context.bot.send_contact(
-        chat_id=update.effective_chat.id,
-        first_name="Shvppeur 🕷️",
-        user_id=SELLER_CHAT_ID,
-        phone_number="" # Facultatif
-    )
+    reply_text = f"Pour toute question, commande ou réservation, clique sur le bouton **Contacter le vendeur** ci-dessous !"
+    await update.message.reply_text(reply_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
