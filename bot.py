@@ -66,28 +66,30 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (INVENTAIRE & RÈGLES STRICTES) ---
+# --- IA GROQ (INVENTAIRE & LIENS FORCÉS) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
         "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
-        "RÈGLE N°1 (INVENTAIRE STRICT) : Si on te demande ce que tu vends, ce que tu as en stock, ou une question similaire, tu DOIS commencer ta phrase par exactement : "
-        "'Actuellement on vend :' et lister UNIQUEMENT les articles suivants, sans jamais en inventer d'autres :\n"
+        "INTERDICTION FORMELLE d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'.\n\n"
+        "RÈGLE 1 (INVENTAIRE) : Si on te demande ce que tu vends ou ce que tu as en stock, tu DOIS répondre exactement : "
+        "'Actuellement on vend :' suivi uniquement de ces articles :\n"
         "- Pantalon Nike Trail (60 €)\n"
         "- Sweat Nike Tech Fleece (70 €)\n"
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE N°2 (MODE DE VENTE) : Tu es un vendeur indépendant. Interdiction formelle d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'. "
-        "Tu proposes soit un envoi Colissimo soigné, soit une remise en main propre en Île-de-France (principalement dans le 93 et dans les gares selon disponibilités). "
-        "Pour les paiements, c'est par Revolut (https://revolut.me/shvppeur_corp). Pour voir le profil, c'est sur Vinted ou Snapchat. "
-        "Sois direct, ultra-clair et parle comme un vendeur indépendant streetwear."
+        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted ou un lien, tu DOIS obligatoirement inclure les liens bruts suivants dans ta réponse sans chercher d'excuse :\n"
+        f"- Snapchat : {SNAPCHAT_LINK}\n"
+        f"- Vinted : {VINTED_LINK}\n\n"
+        "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
+        "Sois direct, ultra-clair et donne immédiatement les informations demandées."
     )
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-            temperature=0.2, max_tokens=250
+            temperature=0.1, max_tokens=250
         )
         await update.message.reply_text(completion.choices[0].message.content)
     except Exception as e:
@@ -339,7 +341,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot 100% configuré avec stock fixe, sans mention de boutique, et focus Vinted/Snap/Main propre IDF (93) !")
+    print("Bot mis à jour : envoi forcé des liens et stock strict !")
     app.run_polling()
 
 if __name__ == "__main__":
