@@ -1,10 +1,7 @@
 import logging
 import os
-import string
-import random
 import hashlib
 import sqlite3
-from datetime import datetime
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -23,7 +20,6 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-5313705184"))
-YOUR_ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "123456789"))
 
 # Initialisation Groq
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -32,23 +28,19 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens
+# Liens officiels
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 SUPPORT_LINK = "https://t.me/idfrunningvip"
-REVIEWS_GROUP_LINK = "https://t.me/c/4339817330/8"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
-TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop"
-VINTED_LINK = "https://www.vinted.fr/member/toncompte"
+SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
+VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
 known_users = set()
 restock_subscribers = {"tech_fleece": set(), "pants": set(), "tees": set()}
-pending_reminders = {}
 current_cart_data = {}
 referral_counts = {}
-referred_users = set()
-unique_promo_codes = {}
 active_promo_codes = [
     "• **Dès 70 € d'achat** : **-5 €** de réduction par article.",
     "• **Dès 170 € d'achat** : **Livraison offerte** 🚚",
@@ -74,28 +66,28 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (INVENTAIRE RÉEL & STRICT) ---
+# --- IA GROQ (INVENTAIRE & RÈGLES STRICTES) ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     system_prompt = (
-        "Tu es l'assistant virtuel de la boutique 'IDF Running // V.I.P'. "
-        "ATTENTION : Le nom contient 'Running' mais CE NE SONT PAS DES VÊTEMENTS DE SPORT. Ce sont des habits streetwear / lifestyle pour s'habiller tous les jours avec du style. "
-        "INTERDICTION ABSOLUE de parler de sport, de course, de run, d'entraînement ou de performance. "
-        "VOICI TON INVENTAIRE EXACT ET EXCLUSIF (tu ne vends QUE ça) :\n"
-        "1. Pantalon Nike Trail (ex: Taille S, 60 €)\n"
-        "2. Sweat Nike Tech Fleece (ex: Noir classique, Taille S, 70 €)\n"
-        "3. Pantalon Nike Phenom Elite (Gris ou Noir, Tailles S/L, 80€ à 90 €)\n"
-        "4. Pantalon Nike Aeroswift (Noir, 75 €)\n"
-        "5. Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n"
-        "Si on te demande ce que tu as en stock, liste uniquement ces articles précis avec leurs prix. "
-        "Aide aussi pour les tailles, les envois Colissimo, et le paiement Revolut (https://revolut.me/shvppeur_corp). "
-        "Sois direct, ultra-clair et parle comme un vendeur streetwear."
+        "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
+        "RÈGLE N°1 (INVENTAIRE STRICT) : Si on te demande ce que tu vends, ce que tu as en stock, ou une question similaire, tu DOIS commencer ta phrase par exactement : "
+        "'Actuellement on vend :' et lister UNIQUEMENT les articles suivants, sans jamais en inventer d'autres :\n"
+        "- Pantalon Nike Trail (60 €)\n"
+        "- Sweat Nike Tech Fleece (70 €)\n"
+        "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
+        "- Pantalon Nike Aeroswift (75 €)\n"
+        "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
+        "RÈGLE N°2 (MODE DE VENTE) : Tu es un vendeur indépendant. Interdiction formelle d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'. "
+        "Tu proposes soit un envoi Colissimo soigné, soit une remise en main propre en Île-de-France (principalement dans le 93 et dans les gares selon disponibilités). "
+        "Pour les paiements, c'est par Revolut (https://revolut.me/shvppeur_corp). Pour voir le profil, c'est sur Vinted ou Snapchat. "
+        "Sois direct, ultra-clair et parle comme un vendeur indépendant streetwear."
     )
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
-            temperature=0.3, max_tokens=200
+            temperature=0.2, max_tokens=250
         )
         await update.message.reply_text(completion.choices[0].message.content)
     except Exception as e:
@@ -111,7 +103,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_message = (
         "👋 **Bienvenue chez IDF Running // V.I.P 🔌** 🛒\n\n"
-        "Spécialiste de la revente de vêtements exclusifs et streetwear.\n"
+        "Revente indépendante de vêtements streetwear exclusifs.\n"
         "Que souhaites-tu faire aujourd'hui ?"
     )
     keyboard = [
@@ -119,8 +111,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔔 Alertes Restock", callback_data="restock_menu")],
         [InlineKeyboardButton("🏷️ Codes Promo", callback_data="promo_codes")],
         [InlineKeyboardButton("🤝 Parrainage", callback_data="referral_menu")],
-        [InlineKeyboardButton("🛍️ Vinted & Réseaux", callback_data="vinted_menu")],
-        [InlineKeyboardButton("🤝 Remise en main propre", callback_data="hand_delivery")],
+        [InlineKeyboardButton("🛍️ Vinted & Snapchat", callback_data="vinted_menu")],
+        [InlineKeyboardButton("🤝 Remise en main propre (93 / Gares IDF)", callback_data="hand_delivery")],
         [InlineKeyboardButton("📦 Mes Commandes", callback_data="my_orders")],
         [InlineKeyboardButton("📏 Guide des tailles", callback_data="size_guide")],
         [InlineKeyboardButton("🚚 Suivre mon colis", callback_data="track_parcel")],
@@ -154,9 +146,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text = "🔔 **Centre d'Alertes Restock**\n\nAbonne-toi aux catégories de ton choix :"
         keyboard = [
-            [InlineKeyboardButton(f"{sub_tf}Ensembles / Tech Fleece", callback_data="sub_tech_fleece")],
-            [InlineKeyboardButton(f"{sub_pants}Pantalons / Cargos", callback_data="sub_pants")],
-            [InlineKeyboardButton(f"{sub_tees}T-shirts / Sweats", callback_data="sub_tees")],
+            [InlineKeyboardButton(f"{sub_tf}Tech Fleece / Sweats", callback_data="sub_tech_fleece")],
+            [InlineKeyboardButton(f"{sub_pants}Pantalons", callback_data="sub_pants")],
+            [InlineKeyboardButton(f"{sub_tees}T-shirts", callback_data="sub_tees")],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
@@ -176,9 +168,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sub_pants = "✅ " if user_id in restock_subscribers["pants"] else "🔔 "
             sub_tees = "✅ " if user_id in restock_subscribers["tees"] else "🔔 "
             kbd = [
-                [InlineKeyboardButton(f"{sub_tf}Ensembles / Tech Fleece", callback_data="sub_tech_fleece")],
-                [InlineKeyboardButton(f"{sub_pants}Pantalons / Cargos", callback_data="sub_pants")],
-                [InlineKeyboardButton(f"{sub_tees}T-shirts / Sweats", callback_data="sub_tees")],
+                [InlineKeyboardButton(f"{sub_tf}Tech Fleece / Sweats", callback_data="sub_tech_fleece")],
+                [InlineKeyboardButton(f"{sub_pants}Pantalons", callback_data="sub_pants")],
+                [InlineKeyboardButton(f"{sub_tees}T-shirts", callback_data="sub_tees")],
                 [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
             ]
             await query.message.edit_text(f"🔔 **Centre d'Alertes Restock**\n\n{st}", reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -201,24 +193,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "vinted_menu":
-        text = "🛍️ **Vinted & Réseaux**\n\nRetrouve nos autres vitrines et profils officiels :"
+        text = "🛍️ **Vinted & Snapchat**\n\nRetrouve mes profils et annonces en ligne :"
         kbd = [
-            [InlineKeyboardButton("🛍️ Aller sur Vinted", url=VINTED_LINK)],
-            [InlineKeyboardButton("🎵 Aller sur TikTok", url=TIKTOK_LINK)],
+            [InlineKeyboardButton("🛍️ Mon Vinted", url=VINTED_LINK)],
+            [InlineKeyboardButton("👻 Mon Snapchat", url=SNAPCHAT_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "hand_delivery":
-        text = "🤝 **Remise en main propre**\n\nLa remise en main propre est disponible sur secteur Île-de-France. Contacte directement le support pour organiser le rendez-vous :"
+        text = "🤝 **Remise en main propre**\n\nDisponible en Île-de-France (principalement dans le 93 et en gares selon mes disponibilités). Contacte-moi pour fixer les détails :"
         kbd = [
-            [InlineKeyboardButton("💬 Contacter le Support", url=SUPPORT_LINK)],
+            [InlineKeyboardButton("💬 Contacter sur Telegram", url=SUPPORT_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
     elif data == "my_orders":
-        text = "📦 **Mes Commandes**\n\nLes statuts de tes commandes s'affichent automatiquement après validation de ton reçu par l'équipe."
+        text = "📦 **Mes Commandes**\n\nLes statuts de tes commandes s'affichent automatiquement après validation de ton reçu."
         kbd = [[InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
 
@@ -238,7 +230,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "back":
         await start(update, context)
 
-# --- TUNNEL DE COMMANDE (PAIEMENT) ---
+# --- TUNNEL DE COMMANDE ---
 async def ask_for_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -252,14 +244,14 @@ async def save_cart_items(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     current_cart_data[user_id] = {"items": update.message.text}
     await update.message.reply_text(
-        "📸 Parfait !\n\nPour valider ta commande, **la capture d'écran de ton reçu Revolut est indispensable**.\nEnvoie-la directement ici :"
+        "📸 Parfait !\n\nEnvoie maintenant la **capture d'écran de ton reçu Revolut** pour valider ta commande :"
     )
     return WAITING_FOR_SCREENSHOT
 
 async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not update.message.photo:
-        await update.message.reply_text("⚠️ Ceci n'est pas une image. Envoie la capture d'écran de ton reçu.")
+        await update.message.reply_text("⚠️ Ceci n'est pas une image. Envoie la capture de ton reçu.")
         return WAITING_FOR_SCREENSHOT
 
     photo_file = await update.message.photo[-1].get_file()
@@ -273,13 +265,13 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
-        await update.message.reply_text("⛔ **Fraude détectée :** Cette capture d'écran a déjà été utilisée.")
+        await update.message.reply_text("⛔ **Doublon détecté :** Cette capture a déjà été utilisée.")
         return ConversationHandler.END
     conn.close()
 
     cart_info = current_cart_data.get(user.id, {}).get("items", "Non spécifié")
     admin_caption = (
-        "🚨 **NOUVEAU REÇU DE PAIEMENT (REVOLUT) !** 🚨\n\n"
+        "🚨 **NOUVEAU REÇU REVOLUT !** 🚨\n\n"
         f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
         f"🆔 **ID :** `{user.id}`\n"
         f"📦 **Articles :** {cart_info}"
@@ -303,7 +295,7 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
     except Exception as e:
         logging.error(f"Erreur envoi admin: {e}")
     
-    await update.message.reply_text("🎉 **Reçu bien reçu !** Transmis à l'équipe pour vérification.")
+    await update.message.reply_text("🎉 **Reçu bien reçu !** Je transmets à l'équipe.")
     return ConversationHandler.END
 
 async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -315,7 +307,7 @@ async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         client_id = int(data.split("_")[2])
         await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **STATUT : VALIDÉ**", parse_mode="Markdown")
         try:
-            await context.bot.send_message(chat_id=client_id, text="✅ Ton paiement a été validé ! Ton colis est en préparation.")
+            await context.bot.send_message(chat_id=client_id, text="✅ Paiement validé ! On gère l'envoi ou la remise en main propre.")
         except Exception:
             pass
             
@@ -323,7 +315,7 @@ async def admin_action_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         client_id = int(data.split("_")[2])
         await query.edit_message_caption(caption=query.message.caption + "\n\n🚚 **STATUT : EXPÉDIÉ**", parse_mode="Markdown")
         try:
-            await context.bot.send_message(chat_id=client_id, text=f"🚚 **Ton colis a été expédié !**\n\nSuivi Colissimo : {COLISSUIVI_LINK}", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=client_id, text=f"🚚 **Colis expédié !**\n\nSuivi Colissimo : {COLISSUIVI_LINK}", parse_mode="Markdown")
         except Exception:
             pass
 
@@ -347,7 +339,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot opérationnel avec l'inventaire exact (Pantalons Trail/Phenom/Aeroswift, Tech Fleece, Tee-shirts) !")
+    print("Bot 100% configuré avec stock fixe, sans mention de boutique, et focus Vinted/Snap/Main propre IDF (93) !")
     app.run_polling()
 
 if __name__ == "__main__":
