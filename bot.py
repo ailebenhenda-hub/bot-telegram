@@ -34,7 +34,7 @@ COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
-CREATOR_DM_LINK = "https://t.me/idf_runningshop"  # Uniquement si le créateur est demandé
+CREATOR_DM_LINK = "https://t.me/idf_runningshop"
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -76,6 +76,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin_request = any(kw in lower_msg for kw in ["admin", "aide", "renseignement", "humain", "problème", "support"])
     is_asking_creator = any(kw in lower_msg for kw in ["créateur", "boss", "propriétaire", "fondateur"])
 
+    # Envoi automatique de l'alerte dans le groupe admin si l'utilisateur demande de l'aide
     if is_admin_request and not is_asking_creator:
         try:
             alert_text = (
@@ -103,8 +104,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"- Si l'utilisateur demande explicitement le CRÉATEUR ou le boss : donne ton lien personnel direct ({CREATOR_DM_LINK}).\n"
         f"Si on te demande ton Snapchat, ton Vinted ou ton TikTok, donne respectivement : Snapchat ({SNAPCHAT_LINK}), Vinted ({VINTED_LINK}), TikTok ({TIKTOK_LINK}).\n\n"
         "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon disponibilités). "
-        "Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
-        "Sois direct, ultra-clair et ne donne pas ton lien personnel si on demande juste un admin."
+        "Paiement par Revolut (https://revolut.me/shvppeur_corp)."
     )
     try:
         completion = groq_client.chat.completions.create(
@@ -377,7 +377,6 @@ def main():
 
     app.add_handler(conv_handler)
     
-    # Enregistrement explicite de toutes les commandes utilisateur
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu_command))
     app.add_handler(CommandHandler("aide", help_command))
@@ -389,7 +388,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot redémarré : Commandes /menu, /aide, /support et /contact actives !")
+    print("Bot opérationnel avec l'IA et les alertes groupe activées !")
     app.run_polling()
 
 if __name__ == "__main__":
