@@ -28,14 +28,14 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 DB_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_NAME = os.path.join(DB_DIR, "bot_data.db")
 
-# Liens officiels (Tous les liens sont là, y compris ton DM Telegram)
+# Liens officiels & Comptes
 REVOLUT_PAYMENT_LINK = "https://revolut.me/shvppeur_corp"
 SUPPORT_LINK = "https://t.me/idfrunningvip"
 COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
-TELEGRAM_DM_LINK = "https://t.me/idfrunningvip"  # Ton lien direct pour te DM
+CREATOR_DM_LINK = "https://t.me/idf_runningshop"  # Ton lien personnel direct
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -68,9 +68,25 @@ def is_blacklisted(user_id):
     conn.close()
     return res is not None
 
-# --- IA GROQ (INVENTAIRE & TOUS LES LIENS FORCÉS) ---
+# --- IA GROQ & TRANSFERT ADMIN ---
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     user_message = update.message.text
+    
+    # Si l'utilisateur demande un humain / de l'aide / à parler au créateur, on alerte le groupe admin en plus de donner le lien
+    lower_msg = user_message.lower()
+    if any(keyword in lower_msg for keyword in ["humain", "parler à quelqu'un", "aide", "créateur", "responsable", "admin", "s'il te plaît", "aidez-moi"]):
+        try:
+            alert_text = (
+                f"🚨 **DEMANDE D'ASSISTANCE HUMAINE !** 🚨\n\n"
+                f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
+                f"🆔 **ID :** `{user.id}`\n"
+                f"💬 **Message :** \"{user_message}\""
+            )
+            await context.bot.send_message(chat_id=ADMIN_GROUP_ID, text=alert_text, parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Erreur alerte admin groupe : {e}")
+
     system_prompt = (
         "Tu es l'assistant virtuel de 'IDF Running // V.I.P', un revendeur indépendant de streetwear / lifestyle en Île-de-France. "
         "INTERDICTION FORMELLE d'utiliser les mots 'boutique', 'magasin' ou 'enseigne'.\n\n"
@@ -81,11 +97,9 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (LIENS OBLIGATOIRES) : Si on te demande ton Snapchat, ton Vinted, ton TikTok, ton lien pour te DM / contacter sur Telegram, tu DOIS obligatoirement inclure les liens bruts correspondants :\n"
-        f"- Telegram DM : {TELEGRAM_DM_LINK}\n"
-        f"- Snapchat : {SNAPCHAT_LINK}\n"
-        f"- Vinted : {VINTED_LINK}\n"
-        f"- TikTok : {TIKTOK_LINK}\n\n"
+        "RÈGLE 2 (LIENS & HUMAIN) : Si on te demande un humain, de l'aide, à parler au créateur ou un lien pour te DM, tu DOIS obligatoirement donner ton lien personnel direct de contact : "
+        f"{CREATOR_DM_LINK} . "
+        f"Si on te demande ton Snapchat, ton Vinted ou ton TikTok, donne respectivement : Snapchat ({SNAPCHAT_LINK}), Vinted ({VINTED_LINK}), TikTok ({TIKTOK_LINK}).\n\n"
         "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). "
         "Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
         "Sois direct, ultra-clair et donne immédiatement les informations demandées sans inventer de règles."
@@ -99,7 +113,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(completion.choices[0].message.content)
     except Exception as e:
         logging.error(f"Erreur IA : {e}")
-        await update.message.reply_text("Petit souci technique, utilise le menu pour m'aider !")
+        await update.message.reply_text(f"Besoin d'un humain ? Viens directement en DM ici : {CREATOR_DM_LINK}")
 
 # --- MENU PRINCIPAL ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,7 +138,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📏 Guide des tailles", callback_data="size_guide")],
         [InlineKeyboardButton("🚚 Suivre mon colis", callback_data="track_parcel")],
         [InlineKeyboardButton("✅ J'ai effectué mon paiement", callback_data="paid")],
-        [InlineKeyboardButton("💬 Me DM sur Telegram", url=TELEGRAM_DM_LINK)],
+        [InlineKeyboardButton("💬 Parler au Créateur (DM)", url=CREATOR_DM_LINK)],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -188,7 +202,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = referral_counts.get(user_id, 0)
         text = f"🤝 **Programme de Parrainage**\n\nPartage ton lien personnel :\n`{link}`\n\n📊 Filleuls validés : `{count}`"
         kbd = [
-            [InlineKeyboardButton("💬 Me DM directement", url=TELEGRAM_DM_LINK)],
+            [InlineKeyboardButton("💬 Contacter le créateur", url=CREATOR_DM_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -212,7 +226,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "hand_delivery":
         text = "🤝 **Remise en main propre**\n\nDisponible en Île-de-France (principalement dans le 93 et en gares selon mes disponibilités). Contacte-moi pour fixer les détails :"
         kbd = [
-            [InlineKeyboardButton("💬 Me DM sur Telegram", url=TELEGRAM_DM_LINK)],
+            [InlineKeyboardButton("💬 Parler au Créateur", url=CREATOR_DM_LINK)],
             [InlineKeyboardButton("🔙 Retour au menu", callback_data="back")]
         ]
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
@@ -347,7 +361,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot 100% blindé avec Telegram DM, Snap, Vinted, TikTok, Stock et Main propre IDF !")
+    print("Bot 100% blindé : Lien de contact direct créateur + Alerte canal admin en temps réel !")
     app.run_polling()
 
 if __name__ == "__main__":
