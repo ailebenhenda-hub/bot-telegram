@@ -35,7 +35,7 @@ COLISSUIVI_LINK = "https://www.laposte.fr/outils/suivre-vos-envois"
 SNAPCHAT_LINK = "https://snapchat.com/t/KLL65sDJ"
 VINTED_LINK = "https://www.vinted.fr/member/idf_runningshop"
 TIKTOK_LINK = "https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98riuu613NW"
-CREATOR_DM_LINK = "https://t.me/idf_runningshop"  # Ton lien personnel direct
+CREATOR_DM_LINK = "https://t.me/idf_runningshop"
 
 # États
 ENTERING_CART, WAITING_FOR_SCREENSHOT = range(2)
@@ -72,13 +72,13 @@ def is_blacklisted(user_id):
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_message = update.message.text
-    
-    # Si l'utilisateur demande un humain / de l'aide / à parler au créateur, on alerte le groupe admin en plus de donner le lien
     lower_msg = user_message.lower()
-    if any(keyword in lower_msg for keyword in ["humain", "parler à quelqu'un", "aide", "créateur", "responsable", "admin", "s'il te plaît", "aidez-moi"]):
+    
+    # Détection si l'utilisateur demande un humain ou de l'aide -> Alerte silencieuse dans ton canal admin
+    if any(keyword in lower_msg for keyword in ["humain", "parler à quelqu'un", "aide", "créateur", "responsable", "admin", "s'il te plaît", "aidez-moi", "canal admin"]):
         try:
             alert_text = (
-                f"🚨 **DEMANDE D'ASSISTANCE HUMAINE !** 🚨\n\n"
+                f"🚨 **ALERTE CLIENT / SUPPORT** 🚨\n\n"
                 f"👤 **Client :** {user.first_name} (@{user.username or 'N/A'})\n"
                 f"🆔 **ID :** `{user.id}`\n"
                 f"💬 **Message :** \"{user_message}\""
@@ -97,12 +97,12 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Pantalon Nike Phenom Elite (Gris ou Noir, 80€ à 90 €)\n"
         "- Pantalon Nike Aeroswift (75 €)\n"
         "- Tee-shirts Nike (Dri-Fit Rouge 30 €, Nike Running Division Noir 35 €, Nike Trail Gris Clair 40 €).\n\n"
-        "RÈGLE 2 (LIENS & HUMAIN) : Si on te demande un humain, de l'aide, à parler au créateur ou un lien pour te DM, tu DOIS obligatoirement donner ton lien personnel direct de contact : "
+        "RÈGLE 2 (LIENS & HUMAIN) : Si on te demande un humain, de l'aide, à parler au créateur, un canal admin ou un lien pour te DM, tu DOIS obligatoirement donner ton lien personnel direct : "
         f"{CREATOR_DM_LINK} . "
         f"Si on te demande ton Snapchat, ton Vinted ou ton TikTok, donne respectivement : Snapchat ({SNAPCHAT_LINK}), Vinted ({VINTED_LINK}), TikTok ({TIKTOK_LINK}).\n\n"
         "RÈGLE 3 (MODE DE VENTE) : Envoi Colissimo soigné ou remise en main propre en Île-de-France (principalement dans le 93 et en gares selon tes disponibilités). "
         "Paiement par Revolut (https://revolut.me/shvppeur_corp).\n"
-        "Sois direct, ultra-clair et donne immédiatement les informations demandées sans inventer de règles."
+        "Sois direct, ultra-clair et donne immédiatement les informations demandées sans inventer de règles et sans dire que tu ne sais pas."
     )
     try:
         completion = groq_client.chat.completions.create(
@@ -361,7 +361,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat))
     
-    print("Bot 100% blindé : Lien de contact direct créateur + Alerte canal admin en temps réel !")
+    print("Bot 100% blindé : alerte admin silencieuse + lien direct créateur sans bug !")
     app.run_polling()
 
 if __name__ == "__main__":
