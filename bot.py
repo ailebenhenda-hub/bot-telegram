@@ -273,7 +273,7 @@ def get_main_keyboard(user_id):
         [InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
          InlineKeyboardButton("🛒 Mon Panier", callback_data="show_cart")],
         [InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size"),
-         InlineKeyboardButton("📦 Mes Commandes", callback_data="show_orders")],
+         InlineKeyboardButton("📦 Mes Commandes & Suivi", callback_data="show_orders")],
         [InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral"),
          InlineKeyboardButton("⭐ Fidélité", callback_data="show_points")],
         [InlineKeyboardButton("📏 Guide des Tailles", callback_data="size_guide"),
@@ -432,7 +432,15 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' ORDER BY order_id DESC LIMIT 1", (tracking, target_id))
         conn.commit()
         conn.close()
-        await context.bot.send_message(chat_id=target_id, text=f"🚚 **Ton colis a été expédié !**\nNuméro de suivi La Poste : `{tracking}`", parse_mode="Markdown")
+        
+        # Envoi interactif du suivi au client avec lien direct vers La Poste
+        track_url = f"https://www.laposte.fr/outils/suivre-vos-envois?code={tracking}"
+        await context.bot.send_message(
+            chat_id=target_id, 
+            text=f"🚚 **Excellente nouvelle ! Ton colis a été expédié.**\n\nNuméro de suivi : `{tracking}`",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Suivre mon colis sur La Poste", url=track_url)]])
+        )
         await update.message.reply_text(f"✅ Suivi enregistré et envoyé au client #{target_id}.")
     except ValueError:
         await update.message.reply_text("❌ ID client invalide.")
@@ -741,8 +749,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not orders:
             text = "📦 Tu n'as pas encore d'historique de commandes."
+            kb_orders = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]])
         else:
             text = "📦 **TON SUIVI DE COMMANDES** :\n\n"
+            kb_buttons = []
             for o in orders:
                 status_icon = "⏳"
                 if o[4] == "Payé": status_icon = "💳"
@@ -754,8 +764,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"  Montant : {o[2]} € | Statut : {status_icon} *{o[4]}*\n"
                 if o[5]:
                     text += f"  Suivi La Poste : `{o[5]}`\n"
+                    track_url = f"https://www.laposte.fr/outils/suivre-vos-envois?code={o[5]}"
+                    kb_buttons.append([InlineKeyboardButton(f"🔍 Suivre Cmd #{o[0]} (La Poste)", url=track_url)])
                 text += "\n"
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
+            
+            kb_buttons.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
+            kb_orders = InlineKeyboardMarkup(kb_buttons)
+            
+        await query.edit_message_text(text=text, reply_markup=kb_orders, parse_mode="Markdown")
 
     elif query.data.startswith("take_"):
         target_id = int(query.data.split("_")[1])
@@ -1006,11 +1022,9 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
     
-    # Handlers pour les messages textes (ex: #1) et les photos (reçus)
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Commandes Admin
     application.add_handler(CommandHandler("vendu", admin_vendu))
     application.add_handler(CommandHandler("resto", admin_resto))
     application.add_handler(CommandHandler("ban", admin_ban))
