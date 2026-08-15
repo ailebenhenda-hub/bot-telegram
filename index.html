@@ -297,7 +297,7 @@
 
         let currentSize = 'ALL';
         let cart = [];
-        let soldItems = []; // Liste des IDs déjà vendus récupérée de Supabase
+        let soldItems = [];
 
         async function fetchSoldItems() {
             try {
@@ -368,6 +368,12 @@
         }
 
         function addToCart(itemId, btn) {
+            // Empêche d'ajouter deux fois le même article unique dans le panier
+            if (cart.includes(itemId)) {
+                alert("Cet article est déjà dans ton panier !");
+                return;
+            }
+
             cart.push(itemId);
             updateCartUI();
 
@@ -472,11 +478,11 @@
                 });
 
                 if (response.ok) {
-                    alert("✨ Commande validée avec succès ! L'article passe en rupture de stock.");
+                    alert("✨ Commande validée avec succès !");
                     cart = [];
                     updateCartUI();
                     closeCartModal();
-                    fetchSoldItems(); // Recharge le stock instantanément
+                    fetchSoldItems();
                 } else {
                     alert("Erreur lors de l'envoi de la commande.");
                 }
@@ -485,7 +491,6 @@
             }
         }
 
-        // Charger le stock dès l'ouverture de la page
         fetchSoldItems();
     </script>
 </body>
