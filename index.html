@@ -516,7 +516,6 @@
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
                     
-                    // Modale mise à jour avec la consigne d'envoyer la preuve de paiement sur le chat Telegram
                     const contentArea = document.getElementById("cartContentArea");
                     contentArea.innerHTML = `
                         <div class="cart-header">
@@ -533,10 +532,13 @@
                         <button class="validate-order-btn" style="background-color: #2c2c2e; color: #ffffff;" onclick="closeCartModal()">🏠 Retour à la boutique</button>
                     `;
 
-                    // Ouvre le lien Revolut
-                    window.open(revolutUrl, '_blank');
+                    // Ouverture sécurisée du lien Revolut via l'API Telegram
+                    if (tg.openLink) {
+                        tg.openLink(revolutUrl);
+                    } else {
+                        window.open(revolutUrl, '_blank');
+                    }
 
-                    // Vide le panier
                     cart = [];
                     updateCartUI();
                     fetchSoldItems();
