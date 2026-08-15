@@ -542,7 +542,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=f"📸 REÇU REÇU de {user.first_name} (@{user.username or 'N/A'}) [ID: {user.id}]\nCommande #{order_id} - Montant : {total_price} €",
         reply_to_message_id=forwarded.message_id,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🛠️ Prise en charge", callback_data=f"take_{user.id}")],
             [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price}"),
              InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
         ])
@@ -730,9 +729,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=ADMIN_GROUP_ID,
             text=f"🚨 NOUVELLE COMMANDE (BLOQUÉE 5 MIN)\nClient : {query.from_user.first_name} (@{query.from_user.username})\nMode : {del_label}\nArticles : {items_str}\nMontant : {final_total} €",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛠️ Prise en charge", callback_data=f"take_{user_id}")],
-                [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user_id}_{final_total}"),
-                 InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user_id}")]
+                [InlineKeyboardButton("🛠️ Prise en charge", callback_data=f"take_{user_id}")]
             ])
         )
         clear_cart(user_id)
@@ -774,8 +771,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("take_"):
         target_id = int(query.data.split("_")[1])
-        new_text = query.message.text + f"\n\n🛠️ Pris en charge par {admin_name}"
-        await query.edit_message_text(text=new_text, reply_markup=query.message.reply_markup)
+        current_text = query.message.text
+        if "Pris en charge par" not in current_text:
+            new_text = current_text + f"\n\n🛠️ Pris en charge par {admin_name}"
+            await query.edit_message_text(text=new_text, reply_markup=query.message.reply_markup)
+        else:
+            await query.answer("Cette commande a déjà été prise en charge.", show_alert=True)
 
     elif query.data == "show_referral":
         bot_username = context.bot.username
@@ -848,7 +849,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "show_points":
         pts = u_data["points"]
-        text = f"⭐ TES POINTS : {pts} pts\n• 1 € = 1 point.\n• Atteins 200 pts pour -10 € !"
+        text = f"⭐ TES POINTS : {pts} pts\n• 1 € = 1 point.\n• Atteins 350 pts pour -10 € !"
         await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
 
     elif query.data.startswith("confirm_pay_"):
