@@ -10,7 +10,6 @@
             --bg-color: #121212;
             --card-bg: #1e1e1e;
             --text-color: #ffffff;
-            --accent-color: #ffffff;
             --secondary-text: #b0b0b0;
             --button-bg: #ffffff;
             --button-text: #000000;
@@ -95,11 +94,6 @@
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
-            transition: opacity 0.2s;
-        }
-
-        .add-btn:active {
-            opacity: 0.8;
         }
 
         .footer-cart {
@@ -138,23 +132,23 @@
     </div>
 
     <div class="catalog-grid" id="catalog-container">
-        </div>
+        <!-- Articles chargés dynamiquement -->
+    </div>
 
     <div class="footer-cart">
         <button class="checkout-btn" onclick="openBotChat()">💬 Gérer mon panier via le Bot</button>
     </div>
 
     <script>
-        // Initialisation de la Web App Telegram
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Exemple d'articles (tu pourras les lier dynamiquement à ton bot plus tard si besoin)
         const items = [
             { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
             { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
             { id: "3", name: "Pantalon Nike Phenom Elite", taille: "L", etat: "Excellent", prix: 90 },
             { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90 },
             { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 }
         ];
 
@@ -175,7 +169,6 @@
         });
 
         function addToCart(itemId) {
-            // Renvoie l'utilisateur vers le bot avec la commande pour ajouter l'article
             tg.sendData(itemId);
             tg.close();
         }
