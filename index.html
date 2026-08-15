@@ -207,7 +207,7 @@
             border-top-left-radius: 24px;
             border-top-right-radius: 24px;
             padding: 24px 20px;
-            max-height: 80vh;
+            max-height: 85vh;
             display: flex;
             flex-direction: column;
         }
@@ -216,7 +216,7 @@
         .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
         .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
 
-        .cart-items-list { overflow-y: auto; max-height: 35vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .cart-items-list { overflow-y: auto; max-height: 30vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
         .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
         .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
 
@@ -516,25 +516,27 @@
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
                     
-                    // Transformation instantanée du contenu de la modale en message de succès + bouton de retour accueil
+                    // Modale mise à jour avec la consigne d'envoyer la preuve de paiement sur le chat Telegram
                     const contentArea = document.getElementById("cartContentArea");
                     contentArea.innerHTML = `
                         <div class="cart-header">
-                            <h2>Statut du paiement</h2>
+                            <h2>Paiement réglé ?</h2>
                             <button class="close-cart" onclick="closeCartModal()">&times;</button>
                         </div>
-                        <div style="text-align: center; padding: 30px 0; display: flex; flex-direction: column; gap: 15px;">
-                            <div style="font-size: 42px;">⭐️</div>
-                            <h3 style="margin: 0; font-size: 18px; color: #ffffff;">Paiement réglé, merci pour votre achat !</h3>
-                            <p style="color: var(--secondary-text); font-size: 13px; margin: 0;">Votre commande a bien été enregistrée et transmise à l'équipe.</p>
+                        <div style="text-align: center; padding: 15px 0; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="font-size: 36px;">⭐️</div>
+                            <h3 style="margin: 0; font-size: 16px; color: #ffffff;">Merci pour votre achat !</h3>
+                            <p style="color: var(--secondary-text); font-size: 12px; margin: 0; line-height: 1.4;">
+                                Une fois le paiement effectué sur Revolut, <strong>revenez sur la discussion Telegram</strong> et envoyez la capture d'écran du reçu comme preuve.
+                            </p>
                         </div>
-                        <button class="validate-order-btn" style="background-color: #2c2c2e; color: #ffffff;" onclick="resetStoreAndHome()">🏠 Retour à l'accueil</button>
+                        <button class="validate-order-btn" style="background-color: #2c2c2e; color: #ffffff;" onclick="closeCartModal()">🏠 Retour à la boutique</button>
                     `;
 
-                    // Ouvre le lien Revolut dans un nouvel onglet
+                    // Ouvre le lien Revolut
                     window.open(revolutUrl, '_blank');
 
-                    // Vide le panier en arrière-plan
+                    // Vide le panier
                     cart = [];
                     updateCartUI();
                     fetchSoldItems();
@@ -548,10 +550,6 @@
                 console.error("Erreur réseau :", err);
                 alert("Erreur de connexion.");
             }
-        }
-
-        function resetStoreAndHome() {
-            closeCartModal();
         }
 
         fetchSoldItems();
