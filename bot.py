@@ -489,24 +489,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
+    
+    # On récupère directement la dernière commande ayant un total supérieur à 0
     cursor.execute(
-        "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", 
+        "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND total_price > 0 ORDER BY order_id DESC LIMIT 1", 
         (user.id,)
     )
     order = cursor.fetchone()
     
     if not order:
-        date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-        cursor.execute(
-            "INSERT INTO orders (user_id, items_str, total_price, delivery_mode, status, date) VALUES (?, ?, ?, ?, ?, ?)",
-            (user.id, "Panier / Web App", 0.0, "Web App", "En attente de paiement", date_str)
-        )
-        conn.commit()
-        cursor.execute(
-            "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", 
-            (user.id,)
-        )
-        order = cursor.fetchone()
+        order = (1, 0.0, "Web App")
 
     conn.close()
 
@@ -537,7 +529,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     user_id = query.from_user.id
-    admin_name = query.from_user.first_name
     u_data = get_user(user_id)
     if u_data["banned"]:
         return
@@ -604,7 +595,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         nb_items = len(cart_items)
         current_delivery = delivery_choices.get(user_id, "gare_nord")
 
-        # Calcul frais de livraison gares IDF (5€ à 10€)
         shipping_costs = {
             "gare_nord": 5,
             "gare_est": 6,
@@ -615,7 +605,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         shipping = shipping_costs.get(current_delivery, 5)
 
-        # Calcul remise dégressive (-5€ par article dès 70€ d'achat si nb_items >= 2)
         discount = 0
         if total >= 70 and nb_items >= 2:
             discount = nb_items * 5
