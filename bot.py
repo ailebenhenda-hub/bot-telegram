@@ -302,8 +302,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_msg = (
         f"👋 Bienvenue {user.first_name} sur IDF Running Shop !\n\n"
         "Boutique indépendante streetwear & vêtements running. 🔥\n"
-        "• Remise dégressive : -5€ pour 2 articles, -10€ pour 3 articles, -15€ pour 4 articles (dès 70€ d'achat) !\n"
-        "• Livraison en Gares IDF de 5€ à 10€ selon la distance.\n\n"
+        "• Remise dégressive : -5€ / art. dès 2 articles et 70€ d'achat !\n"
+        "• Livraison Gares IDF (mains propres) : de 5€ à 15€ selon la distance.\n"
+        "• Colissimo / Web App : 6€ (Gratuit dès 170€ d'achat) !\n\n"
         "Ouvre la Web App ci-dessous ou utilise les boutons du menu !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
@@ -382,7 +383,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     
-    # Récupération de la dernière commande valide (prix > 0)
     cursor.execute(
         "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND total_price > 0 ORDER BY order_id DESC LIMIT 1", 
         (user.id,)
@@ -473,7 +473,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🛒 Ton panier a été vidé.", reply_markup=get_main_keyboard(user_id))
 
     elif query.data == "filter_size":
-        text = "🔍 **Filtrer par taille** :\nSélectionne une taille pour voir les articles correspondants :"
+        text = "🔍 **Filtrer par taille** :\nSélectionne une taille :"
         kb = [
             [InlineKeyboardButton("Taille S", callback_data="size_S"),
              InlineKeyboardButton("Taille M", callback_data="size_M")],
@@ -493,7 +493,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"#{item_id} - {data['name']} | {data['prix']} €\n\n"
                 kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id}", callback_data=f"addcart_{item_id}")])
         if not found:
-            text += "Aucun article disponible dans cette taille pour le moment.\n\n"
+            text += "Aucun article disponible.\n\n"
         kb_rows.append([InlineKeyboardButton("🔙 Retour Catalogue", callback_data="show_catalog")])
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
 
@@ -515,11 +515,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "show_referral":
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-        text = (
-            f"🤝 **PARRAINAGE (-5 €)**\n\n"
-            f"Partage ton lien :\n`{ref_link}`\n\n"
-            f"Gagne -5 € si ton filleul valide une commande sous **7 jours** !"
-        )
+        text = f"🤝 **PARRAINAGE (-5 €)**\n\nLien :\n`{ref_link}`\n\nGagne -5 € si ton filleul commande sous 7 jours !"
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]), parse_mode="Markdown")
 
     elif query.data == "show_points":
@@ -529,7 +525,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📏 Guide des tailles standard Nike.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
 
     elif query.data == "click_and_collect_info":
-        await query.edit_message_text("🤝 Livraison en Gares IDF entre 5€ et 10€ selon la distance.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
+        await query.edit_message_text("🤝 Livraison en Gares IDF (mains propres) : de 5€ à 15€ selon la distance.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
 
     elif query.data == "toggle_vip_status":
         toggle_vip(user_id)
@@ -578,7 +574,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         text = "🛒 Ton panier est vide."
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📦 Voir le catalogue", callback_data="show_catalog")]])
     else:
-        current_delivery = delivery_choices.get(user_id, "gare_nord")
+        current_delivery = delivery_choices.get(user_id, "gare_proche")
         text = "🛒 **TON PANIER** :\n\n"
         total = 0
         nb_items = len(cart_items)
@@ -587,13 +583,12 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
             text += f"• #{item_id} - {item['name']} : **{item['prix']} €**\n"
             total += item['prix']
         
+        # Grille de livraison gares IDF (mains propres : 5€ à 15€) ou Colissimo (6€, gratuit dès 170€)
         shipping_costs = {
-            "gare_nord": 5,
-            "gare_est": 6,
-            "gare_lyon": 7,
-            "gare_montparnasse": 8,
-            "chatelet": 9,
-            "autre_gare": 10
+            "gare_proche": 5,
+            "gare_moyenne": 10,
+            "gare_eloignee": 15,
+            "colissimo": 6
         }
         shipping = shipping_costs.get(current_delivery, 5)
 
@@ -601,15 +596,23 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         if total >= 70 and nb_items >= 2:
             discount = nb_items * 5
 
+        # Gratuité Colissimo / Web App si total >= 170€
+        if total >= 170 and current_delivery == "colissimo":
+            shipping = 0
+
         final_total = max(0, total + shipping - discount)
 
         text += f"\n• Sous-total : {total} €\n"
-        text += f"• Livraison ({current_delivery}) : +{shipping} €\n"
+        text += f"• Livraison : +{shipping} €\n"
         if discount > 0:
-            text += f"• Remise dégressive (-{nb_items} articles) : -{discount} €\n"
+            text += f"• Remise dégressive (-{nb_items} art.) : -{discount} €\n"
         text += f"💰 **TOTAL : {final_total} €**"
 
         kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚂 Gare IDF Proche (5€)", callback_data="set_del_gare_proche"),
+             InlineKeyboardButton("🚂 Gare IDF Moyenne (10€)", callback_data="set_del_gare_moyenne")],
+            [InlineKeyboardButton("🚂 Gare IDF Lointaine (15€)", callback_data="set_del_gare_eloignee")],
+            [InlineKeyboardButton("📦 Colissimo (6€ / Gratuit dès 170€)", callback_data="set_del_colissimo")],
             [InlineKeyboardButton("✅ Valider et Payer", callback_data="checkout_cart")],
             [InlineKeyboardButton("🗑️ Vider", callback_data="clear_cart"),
              InlineKeyboardButton("📦 Catalogue", callback_data="show_catalog")]
