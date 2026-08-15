@@ -684,7 +684,7 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     c.drawString(50, height - 50, "IDF RUNNING SHOP")
     
     c.setFont("Helvetica", 10)
-    c.drawString(50, height - 70, "Boutique Streetwear & Running Second-Main")
+    c.drawString(50, height - 70, "Boutique Streetwear & Vêtements Running Second-Main")
     c.drawString(50, height - 85, "contact: @idf_runningshop")
 
     c.setFont("Helvetica-Bold", 12)
@@ -769,8 +769,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order = cursor.fetchone()
     conn.close()
 
-    total_price = order[1] if order else 0
-    items_str = order[2] if order else "Articles divers"
+    # Sécurité pour t'avertir si aucune commande en attente n'est trouvée
+    if not order:
+        await update.message.reply_text("❌ Aucune commande en attente de paiement trouvée à ton nom. Clique d'abord sur 'Valider et Payer' dans ton panier !")
+        return
+
+    order_id, total_price, items_str = order
 
     keyboard = InlineKeyboardMarkup([
         [
@@ -784,7 +788,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📸 **PREUVE DE PAIEMENT REÇUE**\n\n"
         f"👤 Client : {username_str} (ID: `{user.id}`)\n"
         f"📦 Articles : {items_str}\n"
-        f"💰 Montant estimé : {total_price} €"
+        f"💰 Montant : {total_price} €"
     )
 
     await context.bot.send_photo(
@@ -802,7 +806,6 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
-    # Filtre corrigé pour écouter uniquement les messages privés des utilisateurs
     application.add_handler(MessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, handle_photo))
 
     application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
