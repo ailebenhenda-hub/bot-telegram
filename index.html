@@ -62,9 +62,7 @@
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
-        const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK";
-        
+
         let products = [
             { id: 1, name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, stock: 1 },
             { id: 2, name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, stock: 1 },
@@ -81,31 +79,19 @@
         let cart = {};
         let currentSize = 'ALL';
 
-        async function fetchProducts() {
-            try {
-                let res = await fetch(`${SUPABASE_URL}/rest/v1/produits?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
-                if (res.ok) { 
-                    let data = await res.json();
-                    if (data && data.length > 0) {
-                        products = data;
-                    }
-                }
-            } catch (e) {
-                console.log("Utilisation des produits de secours");
-            }
-            renderCatalog();
-        }
-
         function renderCatalog() {
             const container = document.getElementById("catalog-container");
             const query = document.getElementById("search-input").value.toLowerCase();
             container.innerHTML = "";
-            products.filter(p => (currentSize === 'ALL' || p.taille === currentSize) && p.name.toLowerCase().includes(query)).forEach(item => {
+            
+            let filtered = products.filter(p => (currentSize === 'ALL' || p.taille === currentSize) && p.name.toLowerCase().includes(query));
+            
+            filtered.forEach(item => {
                 container.innerHTML += `
                     <div class="item-card">
                         <div>
                             <h3>#${item.id} - ${item.name}</h3>
-                            <span class="badge">${item.taille}</span> <span class="badge">${item.etat || ''}</span> <span class="badge">Stock: ${item.stock}</span>
+                            <span class="badge">${item.taille}</span> <span class="badge">${item.etat}</span> <span class="badge">Stock: ${item.stock}</span>
                             <div class="item-price">${item.prix} €</div>
                         </div>
                         <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
@@ -113,26 +99,53 @@
             });
         }
 
-        function setFilter(size, el) { currentSize = size; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); renderCatalog(); }
-        function addToCart(id) { cart[id] = (cart[id] || 0) + 1; updateCartUI(); }
+        function setFilter(size, el) { 
+            currentSize = size; 
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); 
+            el.classList.add('active'); 
+            renderCatalog(); 
+        }
+
+        function addToCart(id) { 
+            cart[id] = (cart[id] || 0) + 1; 
+            updateCartUI(); 
+        }
+
         function updateCartUI() {
             let total = Object.values(cart).reduce((a, b) => a + b, 0);
+            let totalPrice = Object.keys(cart).reduce((sum, id) => {
+                let p = products.find(x => String(x.id) === String(id));
+                return sum + (p.prix * cart[id]);
+            }, 0);
+
             document.getElementById("footer-cart-bar").style.display = total > 0 ? "block" : "none";
             document.getElementById("cart-count-label").textContent = `🛒 ${total} article(s)`;
+            document.getElementById("cart-total-preview").textContent = `${totalPrice} €`;
         }
+
         function openCartModal() {
-            const list = document.getElementById("cartItemsList"); list.innerHTML = "";
+            const list = document.getElementById("cartItemsList"); 
+            list.innerHTML = "";
             for (let id in cart) {
                 let p = products.find(x => String(x.id) === String(id));
-                list.innerHTML += `<div class="cart-item-row"><span>${cart[id]}x ${p.name}</span></div>`;
+                list.innerHTML += `<div class="cart-item-row"><span>${cart[id]}x ${p.name}</span><strong>${p.prix * cart[id]} €</strong></div>`;
             }
             document.getElementById("cartModal").style.display = "flex";
         }
-        function closeCartModal() { document.getElementById("cartModal").style.display = "none"; }
-        async function sendOrderToBot() {
-            alert("Commande validée !"); cart = {}; updateCartUI(); closeCartModal();
+
+        function closeCartModal() { 
+            document.getElementById("cartModal").style.display = "none"; 
         }
-        fetchProducts();
+
+        function sendOrderToBot() {
+            alert("Commande validée avec succès !"); 
+            cart = {}; 
+            updateCartUI(); 
+            closeCartModal();
+        }
+
+        // Lancement direct de l'affichage
+        renderCatalog();
     </script>
 </body>
 </html>
