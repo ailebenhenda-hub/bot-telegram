@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
-    Application,
     ApplicationBuilder,
     CallbackQueryHandler,
     CommandHandler,
@@ -17,7 +16,6 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
 RAW_ADMIN_ID = os.getenv("ADMIN_GROUP_ID", "-1003956183527")
 try:
     ADMIN_GROUP_ID = int(RAW_ADMIN_ID)
@@ -34,8 +32,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-
-# --- BASE DE DONNÉES SQLITE PRO ---
 def init_db():
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -118,7 +114,6 @@ def init_db():
 
 init_db()
 
-
 def get_user(user_id, username=""):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -136,14 +131,12 @@ def get_user(user_id, username=""):
     conn.close()
     return {"points": res[0], "banned": res[1], "referred_by": res[2], "discount_coupon": res[3]}
 
-
 def add_points(user_id, points):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
     conn.commit()
     conn.close()
-
 
 def set_referrer(user_id, referrer_id):
     conn = sqlite3.connect("shop.db")
@@ -157,7 +150,6 @@ def set_referrer(user_id, referrer_id):
         return True
     conn.close()
     return False
-
 
 def give_referral_reward(user_id):
     conn = sqlite3.connect("shop.db")
@@ -173,14 +165,12 @@ def give_referral_reward(user_id):
     conn.close()
     return None
 
-
 def use_coupon(user_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET discount_coupon = discount_coupon - 1 WHERE user_id = ? AND discount_coupon > 0", (user_id,))
     conn.commit()
     conn.close()
-
 
 def get_catalog_items():
     conn = sqlite3.connect("shop.db")
@@ -193,14 +183,12 @@ def get_catalog_items():
         catalog[r[0]] = {"name": r[1], "taille": r[2], "etat": r[3], "prix": r[4], "available": bool(r[5])}
     return catalog
 
-
 def add_wishlist(user_id, item_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO wishlist (user_id, item_id) VALUES (?, ?)", (user_id, item_id))
     conn.commit()
     conn.close()
-
 
 def add_to_cart(user_id, item_id):
     conn = sqlite3.connect("shop.db")
@@ -211,7 +199,6 @@ def add_to_cart(user_id, item_id):
         conn.commit()
     conn.close()
 
-
 def get_cart(user_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -220,14 +207,12 @@ def get_cart(user_id):
     conn.close()
     return items
 
-
 def clear_cart(user_id):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM cart WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
-
 
 def is_vip(user_id):
     conn = sqlite3.connect("shop.db")
@@ -236,7 +221,6 @@ def is_vip(user_id):
     res = cursor.fetchone()
     conn.close()
     return res is not None
-
 
 def toggle_vip(user_id):
     conn = sqlite3.connect("shop.db")
@@ -251,11 +235,9 @@ def toggle_vip(user_id):
     conn.close()
     return status
 
-
 reservations = {}  
 known_users = set()
 delivery_choices = {}
-
 
 async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
@@ -269,7 +251,6 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
-        
         elif now >= res["expires"]:
             del reservations[item_id]
             conn = sqlite3.connect("shop.db")
@@ -277,7 +258,6 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
             conn.commit()
             conn.close()
-
             try:
                 await context.bot.send_message(
                     chat_id=res["user_id"],
@@ -285,7 +265,6 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
-
 
 def get_main_keyboard(user_id):
     vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
@@ -307,7 +286,6 @@ def get_main_keyboard(user_id):
          InlineKeyboardButton("📲 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")],
     ]
     return InlineKeyboardMarkup(keyboard)
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -335,7 +313,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Ouvre la Web App ci-dessous ou envoie le numéro d'un article (ex: #1) !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
-
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -698,7 +675,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         new_text += f"\n\n❌ PAIEMENT REFUSÉ PAR {admin_name}"
         await query.edit_message_caption(caption=new_text, reply_markup=None)
 
-
 def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
@@ -740,7 +716,6 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     buffer.seek(0)
     return buffer
 
-
 async def refresh_cart_display(query, user_id, u_data, catalog):
     cart_items = get_cart(user_id)
     text = "🛒 **TON PANIER ACTUEL** :\n\n"
@@ -779,37 +754,9 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     ]
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="Markdown")
 
-
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    chat_id = update.effective_chat.id
-
-    if chat_id == ADMIN_GROUP_ID:
-        if update.effective_message.reply_to_message:
-            replied_msg = update.effective_message.reply_to_message.text or update.effective_message.reply_to_message.caption
-            if replied_msg and "CLIENT ID:" in replied_msg:
-                try:
-                    for line in replied_msg.split("\n"):
-                        if "CLIENT ID:" in line:
-                            target_id = int(line.split("CLIENT ID:")[1].strip())
-                            break
-                    else:
-                        return
-
-                    conn = sqlite3.connect("shop.db")
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_id,))
-                    row = cursor.fetchone()
-                    price = row[0] if row else 0
-                    conn.close()
-
-                    kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{target_id}_{price}"),
-                         InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_id}")]
-                    ])
-                    await update.effective_message.reply_text("Reçu reçu de l'admin. Que faire ?", reply_markup=kb)
-                except Exception:
-                    pass
+    if not update.message.photo:
         return
 
     u_data = get_user(user.id, user.username)
@@ -817,81 +764,66 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     photo_file = await update.message.photo[-1].get_file()
-    photo_bytes = await photo_file.download_as_bytearray()
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}"),
+            InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    conn = sqlite3.connect("shop.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
-    ord_info = cursor.fetchone()
-    conn.close()
-
-    if not ord_info:
-        await update.message.reply_text("Reçu bien reçu, mais aucune commande en attente n'a été trouvée à ton nom.")
-        return
-
-    order_id, total_price, delivery_mode = ord_info
-
-    caption_admin = (
-        f"🚨 **NOUVEAU REÇU DE PAIEMENT REÇU**\n\n"
-        f"👤 Client : {user.first_name} (@{user.username or 'aucun'}) \n"
-        f"🆔 CLIENT ID: {user.id}\n"
-        f"📦 Commande #{order_id} ({delivery_mode})\n"
-        f"💰 Montant attendu : {total_price} €\n\n"
-        f"Vérifie sur Revolut puis clique ci-dessous :"
+    caption = (
+        f"📸 **REÇU DE PAIEMENT REÇU**\n\n"
+        f"👤 Client : {user.first_name} (@{user.username or 'Non défini'})\n"
+        f"🆔 ID : `{user.id}`\n\n"
+        f"Vérifie le paiement sur Revolut et valide ci-dessous :"
     )
-
-    kb_admin = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}_{total_price}"),
-         InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
-    ])
 
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
-        photo=bytes(photo_bytes),
-        caption=caption_admin,
-        reply_markup=kb_admin,
+        photo=photo_file.file_id,
+        caption=caption,
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
 
-    await update.message.reply_text("📸 Reçu bien transmis à l'équipe ! Validation en cours (patiente quelques instants)...")
+    await update.message.reply_text("📤 Reçu transmis à l'équipe ! Validation en cours...")
 
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text.strip()
-    u_data = get_user(user.id, user.username)
-    if u_data["banned"]:
-        return
-
+    
     if text.startswith("#"):
         item_id = text[1:]
         catalog = get_catalog_items()
         if item_id in catalog:
-            data = catalog[item_id]
-            if not data["available"] and item_id not in reservations:
-                await update.message.reply_text(f"❌ L'article #{item_id} ({data['name']}) est déjà vendu.")
-            elif item_id in reservations:
-                await update.message.reply_text(f"⏳ L'article #{item_id} ({data['name']}) est actuellement réservé par un autre client.")
-            else:
+            item = catalog[item_id]
+            if item["available"] and item_id not in reservations:
                 add_to_cart(user.id, item_id)
-                await update.message.reply_text(f"✅ Article #{item_id} - {data['name']} ({data['prix']}€) ajouté au panier !")
+                await update.message.reply_text(f"✅ Article #{item_id} ({item['name']} - {item['prix']}€) ajouté au panier !")
+            else:
+                await update.message.reply_text(f"❌ L'article #{item_id} n'est malheureusement plus disponible.")
         else:
-            await update.message.reply_text("❌ Cet article n'existe pas dans le catalogue.")
-
+            await update.message.reply_text("❌ Article introuvable. Tape /start ou utilise le catalogue.")
 
 def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    if not TELEGRAM_TOKEN:
+        print("Erreur : La variable d'environnement TELEGRAM_TOKEN est manquante.")
+        return
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
+    job_queue = app.job_queue
+    job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
-    print("Bot démarré avec succès !")
-    application.run_polling()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
+    print("🤖 Bot IDF Running Shop démarré avec succès !")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
