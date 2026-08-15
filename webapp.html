@@ -6,97 +6,182 @@
     <title>IDF Running Shop</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #ffffff;
+            --accent-color: #ffffff;
+            --secondary-text: #b0b0b0;
+            --button-bg: #ffffff;
+            --button-text: #000000;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             margin: 0;
             padding: 15px;
         }
-        h1 { font-size: 20px; text-align: center; margin-bottom: 20px; }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 5px 0;
+            letter-spacing: 0.5px;
+        }
+
+        p.subtitle {
+            color: var(--secondary-text);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .banner {
+            background: linear-gradient(135deg, #2b2b2b, #1a1a1a);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+
+        .catalog-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 80px;
+        }
+
         .item-card {
-            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-            padding: 12px 15px;
-            margin-bottom: 12px;
-            border-radius: 10px;
+            background-color: var(--card-bg);
+            border: 1px solid #2a2a2a;
+            border-radius: 14px;
+            padding: 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .item-info strong { font-size: 15px; }
-        .item-info small { color: var(--tg-theme-hint-color, #777); }
-        button {
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
+
+        .item-info h3 {
+            font-size: 15px;
+            margin: 0 0 5px 0;
+        }
+
+        .item-details {
+            font-size: 12px;
+            color: var(--secondary-text);
+        }
+
+        .item-price {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--text-color);
+            margin-top: 5px;
+        }
+
+        .add-btn {
+            background-color: var(--button-bg);
+            color: var(--button-text);
             border: none;
-            padding: 8px 14px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .social-section {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid var(--tg-theme-hint-color, #ddd);
-        }
-        .social-btn {
-            display: inline-block;
-            background-color: #000000;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 10px 20px;
             border-radius: 8px;
+            padding: 8px 14px;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .add-btn:active {
+            opacity: 0.8;
+        }
+
+        .footer-cart {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #1a1a1a;
+            border-top: 1px solid #333;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .checkout-btn {
+            background-color: #ffffff;
+            color: #000000;
+            border: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <h1>🔥 IDF Running Shop</h1>
-    <div id="catalog-list">
+
+    <header>
+        <h1>IDF RUNNING SHOP</h1>
+        <p class="subtitle">Streetwear & Vêtements Running</p>
+    </header>
+
+    <div class="banner">
+        🔥 Port offert dès 170 € d'achat ! Remise de -5€ par article supp. dès 70€.
+    </div>
+
+    <div class="catalog-grid" id="catalog-container">
         </div>
 
-    <div class="social-section">
-        <a href="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98tc8iPs6VS" target="_blank" class="social-btn">📱 Voir notre TikTok</a>
+    <div class="footer-cart">
+        <button class="checkout-btn" onclick="openBotChat()">💬 Gérer mon panier via le Bot</button>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // Ouvre la Web App en plein écran
+        // Initialisation de la Web App Telegram
+        let tg = window.Telegram.WebApp;
+        tg.expand();
 
-        // Liste des articles disponibles
+        // Exemple d'articles (tu pourras les lier dynamiquement à ton bot plus tard si besoin)
         const items = [
-            { id: "1", name: "Pantalon Nike Trail", size: "S", price: 60 },
-            { id: "2", name: "Pantalon Nike Aeroswift", size: "M", price: 75 },
-            { id: "3", name: "Pantalon Nike Phenom Elite", size: "L", price: 90 },
-            { id: "4", name: "Sweat Nike Tech Aviateur v1", size: "M", price: 60 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", size: "L", price: 90 },
-            { id: "6", name: "Tee-Shirt Nike Trail", size: "S", price: 40 },
-            { id: "7", name: "Tee-Shirt Nike Running Division", size: "M", price: 35 },
-            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", size: "S", price: 30 },
-            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", size: "S", price: 70 },
-            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", size: "S", price: 80 }
+            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
+            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
+            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "L", etat: "Excellent", prix: 90 },
+            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
+            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 }
         ];
 
-        const container = document.getElementById('catalog-list');
+        const container = document.getElementById("catalog-container");
+
         items.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'item-card';
+            const card = document.createElement("div");
+            card.className = "item-card";
             card.innerHTML = `
                 <div class="item-info">
-                    <strong>#${item.id} - ${item.name}</strong><br>
-                    <small>Taille : ${item.size} | 💰 ${item.price} €</small>
+                    <h3>#${item.id} - ${item.name}</h3>
+                    <div class="item-details">Taille : ${item.taille} | État : ${item.etat}</div>
+                    <div class="item-price">${item.prix} €</div>
                 </div>
-                <button onclick="addToCart('${item.id}')">Ajouter</button>
+                <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
             `;
             container.appendChild(card);
         });
 
         function addToCart(itemId) {
-            // Envoie les données au bot Telegram
-            tg.sendData(JSON.stringify({ action: "add_cart", item_id: itemId }));
-            tg.close(); // Ferme automatiquement la Web App après l'action
+            // Renvoie l'utilisateur vers le bot avec la commande pour ajouter l'article
+            tg.sendData(itemId);
+            tg.close();
+        }
+
+        function openBotChat() {
+            tg.close();
         }
     </script>
 </body>
