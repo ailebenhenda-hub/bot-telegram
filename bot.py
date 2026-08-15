@@ -769,7 +769,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order = cursor.fetchone()
     conn.close()
 
-    # Sécurité pour t'avertir si aucune commande en attente n'est trouvée
     if not order:
         await update.message.reply_text("❌ Aucune commande en attente de paiement trouvée à ton nom. Clique d'abord sur 'Valider et Payer' dans ton panier !")
         return
@@ -784,19 +783,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     username_str = f"@{user.username}" if user.username else user.first_name
+    
+    # Texte sans parse_mode Markdown pour éviter tout crash de caractères spéciaux
     caption_text = (
-        f"📸 **PREUVE DE PAIEMENT REÇUE**\n\n"
-        f"👤 Client : {username_str} (ID: `{user.id}`)\n"
-        f"📦 Articles : {items_str}\n"
-        f"💰 Montant : {total_price} €"
+        f"PREUVE DE PAIEMENT REÇUE\n\n"
+        f"Client : {username_str} (ID: {user.id})\n"
+        f"Articles : {items_str}\n"
+        f"Montant : {total_price} €"
     )
 
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
         photo=update.message.photo[-1].file_id,
         caption=caption_text,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+        reply_markup=keyboard
     )
 
     await update.message.reply_text("✅ Reçu bien reçu ! Il a été transmis à l'équipe pour validation.")
