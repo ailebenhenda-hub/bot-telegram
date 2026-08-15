@@ -7,13 +7,12 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --bg-color: #0d0d0d;
-            --card-bg: #1a1a1a;
+            --bg-color: #0b0b0b;
+            --card-bg: #161616;
             --text-color: #ffffff;
-            --secondary-text: #999999;
-            --accent-color: #2ecc71;
-            --button-bg: #ffffff;
-            --button-text: #000000;
+            --secondary-text: #888888;
+            --accent: #ffffff;
+            --border-color: #222222;
         }
 
         body {
@@ -21,58 +20,108 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 15px;
-            padding-bottom: 90px;
+            padding: 12px;
+            padding-bottom: 95px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 20px;
-            padding-top: 10px;
+            margin-bottom: 15px;
+            padding-top: 5px;
         }
 
         h1 {
-            font-size: 24px;
-            font-weight: 800;
-            margin: 0 0 5px 0;
+            font-size: 22px;
+            font-weight: 900;
+            margin: 0 0 3px 0;
             letter-spacing: 0.5px;
         }
 
         p.subtitle {
             color: var(--secondary-text);
-            font-size: 13px;
+            font-size: 11px;
             margin: 0;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
         }
 
         .banner {
-            background: linear-gradient(135deg, #1f1f1f, #141414);
-            border: 1px solid #2c2c2c;
-            border-radius: 14px;
-            padding: 14px;
+            background: linear-gradient(135deg, #181818, #111111);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px;
             text-align: center;
-            font-size: 13px;
-            margin-bottom: 20px;
-            color: #e0e0e0;
+            font-size: 12px;
+            margin-bottom: 15px;
+            color: #d0d0d0;
             line-height: 1.4;
         }
 
+        /* Barre de recherche et filtres */
+        .search-box {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .search-box:focus {
+            border-color: #555;
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            scrollbar-width: none;
+        }
+
+        .filter-chips::-webkit-scrollbar {
+            display: none;
+        }
+
+        .chip {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--secondary-text);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .chip.active {
+            background-color: #ffffff;
+            color: #000000;
+            border-color: #ffffff;
+        }
+
+        /* Grille catalogue */
         .catalog-grid {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
 
         .item-card {
             background-color: var(--card-bg);
-            border: 1px solid #262626;
-            border-radius: 16px;
-            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .item-info {
@@ -81,31 +130,41 @@
         }
 
         .item-info h3 {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
-            margin: 0 0 6px 0;
+            margin: 0 0 5px 0;
+            color: #f0f0f0;
         }
 
-        .item-details {
-            font-size: 12px;
+        .item-meta {
+            display: flex;
+            gap: 8px;
+            font-size: 11px;
             color: var(--secondary-text);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
+        }
+
+        .badge {
+            background: #222;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #ccc;
         }
 
         .item-price {
-            font-weight: 800;
-            font-size: 17px;
-            color: var(--text-color);
+            font-weight: 900;
+            font-size: 16px;
+            color: #ffffff;
         }
 
         .add-btn {
-            background-color: var(--button-bg);
-            color: var(--button-text);
+            background-color: #ffffff;
+            color: #000000;
             border: none;
-            border-radius: 10px;
-            padding: 10px 16px;
+            border-radius: 8px;
+            padding: 9px 14px;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 12px;
             cursor: pointer;
             transition: transform 0.1s, background-color 0.2s;
             white-space: nowrap;
@@ -120,15 +179,16 @@
             color: #ffffff;
         }
 
+        /* Panier fixe en bas */
         .footer-cart {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: rgba(18, 18, 18, 0.95);
-            backdrop-filter: blur(10px);
-            border-top: 1px solid #262626;
-            padding: 15px;
+            background-color: rgba(11, 11, 11, 0.95);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border-color);
+            padding: 12px 15px;
             text-align: center;
             z-index: 100;
         }
@@ -138,12 +198,19 @@
             color: #000000;
             border: none;
             width: 100%;
-            padding: 14px;
-            border-radius: 12px;
+            padding: 13px;
+            border-radius: 10px;
             font-weight: 800;
-            font-size: 15px;
+            font-size: 14px;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(255,255,255,0.1);
+            box-shadow: 0 4px 12px rgba(255,255,255,0.08);
+        }
+
+        .no-result {
+            text-align: center;
+            color: var(--secondary-text);
+            font-size: 13px;
+            padding: 30px;
         }
     </style>
 </head>
@@ -158,11 +225,24 @@
         🔥 <strong>Port offert</strong> dès 170 € d'achat !<br>Remise de <strong>-5€</strong> par article supp. dès 70€.
     </div>
 
+    <!-- Barre de recherche -->
+    <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article (ex: Trail, Aeroswift...)" oninput="filterCatalog()">
+
+    <!-- Filtres par taille -->
+    <div class="filter-chips">
+        <div class="chip active" onclick="setFilter('ALL', this)">Tout</div>
+        <div class="chip" onclick="setFilter('S', this)">Taille S</div>
+        <div class="chip" onclick="setFilter('M', this)">Taille M</div>
+        <div class="chip" onclick="setFilter('L', this)">Taille L</div>
+        <div class="chip" onclick="setFilter('XL', this)">Taille XL</div>
+    </div>
+
     <div class="catalog-grid" id="catalog-container">
-        </div>
+        <!-- Généré dynamiquement -->
+    </div>
 
     <div class="footer-cart">
-        <button class="checkout-btn" onclick="openBotCart()">🛒 Gérer mon panier via le Bot</button>
+        <button class="checkout-btn" onclick="openBotCart()">🛒 Voir mon panier / Gérer via le Bot</button>
     </div>
 
     <script>
@@ -182,39 +262,72 @@
             { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80 }
         ];
 
-        const container = document.getElementById("catalog-container");
+        let currentSize = 'ALL';
 
-        items.forEach(item => {
-            const card = document.createElement("div");
-            card.className = "item-card";
-            card.innerHTML = `
-                <div class="item-info">
-                    <h3>#${item.id} - ${item.name}</h3>
-                    <div class="item-details">Taille : ${item.taille} &bull; État : ${item.etat}</div>
-                    <div class="item-price">${item.prix} €</div>
-                </div>
-                <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
-            `;
-            container.appendChild(card);
-        });
+        function renderCatalog(filterText = '') {
+            const container = document.getElementById("catalog-container");
+            container.innerHTML = "";
+
+            const filtered = items.filter(item => {
+                const matchesSize = currentSize === 'ALL' || item.taille === currentSize;
+                const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || item.id.includes(filterText);
+                return matchesSize && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="no-result">Aucun article trouvé 😕</div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "item-card";
+                card.innerHTML = `
+                    <div class="item-info">
+                        <h3>#${item.id} - ${item.name}</h3>
+                        <div class="item-meta">
+                            <span class="badge">Taille ${item.taille}</span>
+                            <span class="badge">${item.etat}</span>
+                        </div>
+                        <div class="item-price">${item.prix} €</div>
+                    </div>
+                    <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function setFilter(size, element) {
+            currentSize = size;
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+            const searchText = document.getElementById('search-input').value;
+            renderCatalog(searchText);
+        }
+
+        function filterCatalog() {
+            const searchText = document.getElementById('search-input').value;
+            renderCatalog(searchText);
+        }
 
         function addToCart(itemId, buttonElement) {
-            // Envoie l'ID au bot Telegram
             tg.sendData(itemId);
             
-            // Effet visuel temporaire sur le bouton
             buttonElement.textContent = "✓ Ajouté";
             buttonElement.classList.add("added");
             
             setTimeout(() => {
                 buttonElement.textContent = "Ajouter";
                 buttonElement.classList.remove("added");
-            }, 1200);
+            }, 1000);
         }
 
         function openBotCart() {
             tg.close();
         }
+
+        // Initialisation au chargement
+        renderCatalog();
     </script>
 </body>
 </html>
