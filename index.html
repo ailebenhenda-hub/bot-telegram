@@ -236,7 +236,7 @@
     </header>
 
     <div class="announcement-banner">
-        📢 <strong>Annonce :</strong> Articles uniques (1 seul exemplaire par modèle) !
+        📢 <strong>Annonce :</strong> Restock de runnings en fin de mois ! Y'aura du trail, du tech et du phenom.
     </div>
 
     <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article..." oninput="filterCatalog()">
@@ -287,7 +287,7 @@
             { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
             { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90 },
             { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "S", etat: "Excellent", prix: 90 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90 },
             { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 },
             { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35 },
             { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30 },
@@ -368,7 +368,6 @@
         }
 
         function addToCart(itemId, btn) {
-            // Empêche d'ajouter deux fois le même article unique dans le panier
             if (cart.includes(itemId)) {
                 alert("Cet article est déjà dans ton panier !");
                 return;
