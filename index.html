@@ -282,7 +282,6 @@
         const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
         const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK";
 
-        // Configuration pour les notifications directes dans le groupe admin
         const BOT_TOKEN = "8537469629:AAHqv5VPN1Qm6zJMiiHIHlSSY-eNPQOEX3bo";
         const ADMIN_GROUP_ID = "-1003956183527";
         const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
@@ -478,7 +477,6 @@
             };
 
             try {
-                // 1. Enregistrement dans Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -491,7 +489,6 @@
                 });
 
                 if (response.ok) {
-                    // 2. Notification automatique envoyée au groupe Admin (Type Shopify)
                     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -502,15 +499,18 @@
                         })
                     });
 
-                    alert("✨ Commande validée ! Redirection vers le paiement Revolut...");
-                    
-                    // 3. Redirection automatique vers le lien Revolut avec le montant exact
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
-                    window.open(revolutUrl, '_blank');
+                    const btn = document.querySelector('.validate-order-btn');
+                    btn.style.backgroundColor = "#0075ff";
+                    btn.innerHTML = `💳 Payer ${calc.finalTotal} € sur Revolut`;
+                    btn.onclick = function() {
+                        window.open(revolutUrl, '_blank');
+                    };
+
+                    alert("✨ Commande validée ! Clique maintenant sur le bouton bleu pour régler.");
 
                     cart = [];
                     updateCartUI();
-                    closeCartModal();
                     fetchSoldItems();
                 } else {
                     let errorData = await response.json();
