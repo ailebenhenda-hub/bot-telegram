@@ -171,7 +171,6 @@
             color: #ffffff;
         }
 
-        /* Animation effet cloche / rebond pro */
         @keyframes popClick {
             0% { transform: scale(1); }
             50% { transform: scale(1.15); }
@@ -420,8 +419,7 @@
         <div class="chip" onclick="setFilter('XL', this)">Taille XL</div>
     </div>
 
-    <div class="catalog-grid" id="catalog-container">
-        </div>
+    <div class="catalog-grid" id="catalog-container"></div>
 
     <div class="section-title">⭐ Ce que pensent nos clients</div>
     <div class="reviews-box">
@@ -477,13 +475,16 @@
                 </div>
             </div>
 
-            <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander via le Bot</button>
+            <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
         </div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
+
+        const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DakG_o6bZnO"; // Ta Publishable key
 
         const items = [
             { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
@@ -549,19 +550,12 @@
             cart.push(itemId);
             updateCartUI();
 
-            // Déclenche l'animation de rebond (style cloche YouTube)
             btn.classList.add("pop-anim");
             btn.textContent = "✓ Ajouté";
             btn.classList.add("added");
 
-            setTimeout(() => {
-                btn.classList.remove("pop-anim");
-            }, 300);
-
-            setTimeout(() => {
-                btn.textContent = "Ajouter";
-                btn.classList.remove("added");
-            }, 1000);
+            setTimeout(() => { btn.classList.remove("pop-anim"); }, 300);
+            setTimeout(() => { btn.textContent = "Ajouter"; btn.classList.remove("added"); }, 1000);
 
             if (tg.HapticFeedback) {
                 tg.HapticFeedback.impactOccurred('light');
@@ -600,9 +594,7 @@
             let discount = 0;
             cart.forEach(id => {
                 let item = items.find(i => i.id === id);
-                if (item && item.prix >= 70) {
-                    discount += 5;
-                }
+                if (item && item.prix >= 70) discount += 5;
             });
 
             let shipping = (subtotal - discount >= 170) ? 0 : 10;
@@ -645,10 +637,39 @@
             document.getElementById("cartModal").style.display = "none";
         }
 
-        function sendOrderToBot() {
+        async function sendOrderToBot() {
             if (cart.length === 0) return;
-            tg.sendData(cart.join(','));
-            tg.close();
+
+            const username = tg.initDataUnsafe?.user?.username || tg.initDataUnsafe?.user?.first_name || "Client Telegram";
+            const orderData = {
+                items: cart.join(', '),
+                username: username,
+                statut: "nouveau"
+            };
+
+            try {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (response.ok) {
+                    alert("✨ Commande validée avec succès ! Le bot t'a pris en charge.");
+                    cart = [];
+                    updateCartUI();
+                    closeCartModal();
+                } else {
+                    alert("Erreur lors de l'envoi de la commande.");
+                }
+            } catch (err) {
+                alert("Erreur de connexion.");
+            }
         }
 
         renderCatalog();
