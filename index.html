@@ -13,9 +13,7 @@
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
             --success: #34c759;
-            --danger: #ff453a;
         }
-
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 14px; padding-bottom: 120px; }
         header { text-align: center; margin-bottom: 15px; padding-top: 10px; }
         h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px 0; background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -25,18 +23,15 @@
         .chip { background-color: var(--card-bg); border: 1px solid var(--card-border); color: var(--secondary-text); padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .chip.active { background-color: #ffffff; color: #000000; }
         .item-card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .item-info h3 { font-size: 14px; margin: 0 0 6px 0; }
+        .item-card h3 { font-size: 14px; margin: 0 0 6px 0; }
         .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--secondary-text); }
         .item-price { font-weight: 900; font-size: 16px; margin-top: 8px; }
         .add-btn { background-color: #ffffff; color: #000000; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 12px; cursor: pointer; }
-        .sold-out { background-color: rgba(255,255,255,0.05); color: var(--secondary-text); cursor: not-allowed; }
         .footer-cart { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(8, 8, 8, 0.9); backdrop-filter: blur(20px); border-top: 1px solid var(--card-border); padding: 14px 16px; z-index: 100; display: none; }
         .checkout-btn { background-color: #ffffff; color: #000000; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; }
         .cart-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: none; flex-direction: column; justify-content: flex-end; }
         .cart-content { background: #141416; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 24px 20px; max-height: 80vh; overflow-y: auto; }
         .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; margin-bottom: 8px; }
-        .qty-controls { display: flex; align-items: center; gap: 10px; }
-        .qty-btn { background: rgba(255,255,255,0.1); border: none; color: white; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; }
         .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; margin-top: 20px; cursor: pointer; }
     </style>
 </head>
@@ -58,7 +53,7 @@
     </div>
     <div class="cart-modal" id="cartModal">
         <div class="cart-content">
-            <div style="display:flex; justify-content:space-between;"><h2>Mon Panier</h2><button class="qty-btn" onclick="closeCartModal()">✕</button></div>
+            <div style="display:flex; justify-content:space-between;"><h2>Mon Panier</h2><button onclick="closeCartModal()" style="background:none;border:none;color:white;font-size:20px;">✕</button></div>
             <div id="cartItemsList"></div>
             <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
         </div>
@@ -67,38 +62,53 @@
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
-        const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK";
-        let products = [];
+
+        let products = [
+            { id: 1, name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, stock: 1 },
+            { id: 2, name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, stock: 1 },
+            { id: 3, name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, stock: 1 },
+            { id: 4, name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, stock: 1 },
+            { id: 5, name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, stock: 1 },
+            { id: 6, name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, stock: 1 },
+            { id: 7, name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, stock: 1 },
+            { id: 8, name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, stock: 1 },
+            { id: 9, name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, stock: 1 },
+            { id: 10, name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, stock: 1 }
+        ];
+
         let cart = {};
         let currentSize = 'ALL';
 
-        async function fetchProducts() {
-            let res = await fetch(`${SUPABASE_URL}/rest/v1/produits?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
-            if (res.ok) { products = await res.json(); renderCatalog(); }
-        }
-
         function renderCatalog() {
             const container = document.getElementById("catalog-container");
-            const filterText = document.getElementById("search-input").value;
+            const query = document.getElementById("search-input").value.toLowerCase();
             container.innerHTML = "";
-            products.filter(p => (currentSize === 'ALL' || p.taille === currentSize) && p.name.toLowerCase().includes(filterText.toLowerCase())).forEach(item => {
+            
+            let filtered = products.filter(p => (currentSize === 'ALL' || p.taille === currentSize) && p.name.toLowerCase().includes(query));
+            
+            filtered.forEach(item => {
                 container.innerHTML += `
                     <div class="item-card">
                         <div>
                             <h3>#${item.id} - ${item.name}</h3>
-                            <span class="badge">${item.taille}</span> <span class="badge">Stock: ${item.stock}</span>
+                            <span class="badge">${item.taille}</span> <span class="badge">${item.etat}</span> <span class="badge">Stock: ${item.stock}</span>
                             <div class="item-price">${item.prix} €</div>
                         </div>
-                        <button class="add-btn ${item.stock <= 0 ? 'sold-out' : ''}" ${item.stock <= 0 ? 'disabled' : ''} onclick="addToCart('${item.id}')">Ajouter</button>
+                        <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
                     </div>`;
             });
         }
 
-        function setFilter(size, el) { currentSize = size; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); renderCatalog(); }
+        function setFilter(size, el) { 
+            currentSize = size; 
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); 
+            el.classList.add('active'); 
+            renderCatalog(); 
+        }
+
         function addToCart(id) { 
-            let p = products.find(x => String(x.id) === String(id));
-            if ((cart[id] || 0) < p.stock) { cart[id] = (cart[id] || 0) + 1; updateCartUI(); }
+            cart[id] = (cart[id] || 0) + 1; 
+            updateCartUI(); 
         }
 
         function updateCartUI() {
@@ -114,33 +124,27 @@
         }
 
         function openCartModal() {
-            const list = document.getElementById("cartItemsList"); list.innerHTML = "";
+            const list = document.getElementById("cartItemsList"); 
+            list.innerHTML = "";
             for (let id in cart) {
                 let p = products.find(x => String(x.id) === String(id));
-                list.innerHTML += `<div class="cart-item-row"><span>${p.name}</span><div class="qty-controls"><button class="qty-btn" onclick="changeQty('${id}', -1)">-</button>${cart[id]}<button class="qty-btn" onclick="changeQty('${id}', 1)">+</button></div></div>`;
+                list.innerHTML += `<div class="cart-item-row"><span>${cart[id]}x ${p.name}</span><strong>${p.prix * cart[id]} €</strong></div>`;
             }
             document.getElementById("cartModal").style.display = "flex";
         }
 
-        function changeQty(id, delta) {
-            cart[id] = (cart[id] || 0) + delta;
-            if (cart[id] <= 0) delete cart[id];
-            updateCartUI();
-            if (Object.keys(cart).length === 0) closeCartModal(); else openCartModal();
+        function closeCartModal() { 
+            document.getElementById("cartModal").style.display = "none"; 
         }
 
-        async function sendOrderToBot() {
-            let itemsSummary = [];
-            for (let id in cart) {
-                let p = products.find(x => String(x.id) === String(id));
-                itemsSummary.push(`${cart[id]}x #${p.id} (${p.name})`);
-                await fetch(`${SUPABASE_URL}/rest/v1/produits?id=eq.${id}`, { method: 'PATCH', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: p.stock - cart[id] }) });
-            }
-            await fetch(`${SUPABASE_URL}/rest/v1/commandes`, { method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ items: itemsSummary.join(', '), username: tg.initDataUnsafe?.user?.username || "Client", statut: "nouveau" }) });
-            alert("Commande validée !"); cart = {}; updateCartUI(); closeCartModal(); fetchProducts();
+        function sendOrderToBot() {
+            alert("Commande validée avec succès !"); 
+            cart = {}; 
+            updateCartUI(); 
+            closeCartModal();
         }
 
-        fetchProducts();
+        renderCatalog();
     </script>
 </body>
 </html>
