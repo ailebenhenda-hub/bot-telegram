@@ -9,7 +9,6 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
-    MessageBuilder,
     MessageHandler,
     filters,
 )
@@ -315,7 +314,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
 
-# --- COMMANDES ADMIN COMPLÈTES ---
+# --- COMMANDES ADMIN ---
 
 async def admin_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
@@ -485,7 +484,65 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Erreur lors de la génération : {e}")
 
-# --- FIN COMMANDES ADMIN ---
+# --- GESTION MESSAGES TEXTE (ex: #1) ET PHOTOS ---
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if not text:
+        return
+    
+    clean_text = text.strip()
+    if clean_text.startswith("#"):
+        item_id = clean_text[1:]
+        catalog = get_catalog_items()
+        if item_id in catalog:
+            item = catalog[item_id]
+            if item["available"] and item_id not in reservations:
+                add_to_cart(update.effective_user.id, item_id)
+                await update.message.reply_text(f"✅ Article #{item_id} ({item['name']} - {item['prix']}€) ajouté à ton panier !")
+            elif item_id in reservations:
+                await update.message.reply_text(f"⏳ L'article #{item_id} est actuellement réservé par un autre client.")
+            else:
+                await update.message.reply_text(f"❌ Désolé, l'article #{item_id} ({item['name']}) a déjà été vendu.")
+        else:
+            await update.message.reply_text("❌ Cet article n'existe pas dans le catalogue.")
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not update.message.photo:
+        return
+
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT order_id, total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+    order = cursor.fetchone()
+    conn.close()
+
+    if not order:
+        await update.message.reply_text("❌ Aucune commande en attente de paiement trouvée à ton nom. Clique d'abord sur 'Valider et Payer' dans ton panier !")
+        return
+
+    order_id, total_price = order
+
+    forwarded = await context.bot.forward_message(
+        chat_id=ADMIN_GROUP_ID,
+        from_chat_id=update.message.chat_id,
+        message_id=update.message.message_id
+    )
+    
+    await context.bot.send_message(
+        chat_id=ADMIN_GROUP_ID,
+        text=f"📸 REÇU REÇU de {user.first_name} (@{user.username or 'N/A'}) [ID: {user.id}]\nCommande #{order_id} - Montant : {total_price} €",
+        reply_to_message_id=forwarded.message_id,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🛠️ Prise en charge", callback_data=f"take_{user.id}")],
+            [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price}"),
+             InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
+        ])
+    )
+    await update.message.reply_text("📸 Reçu bien transmis aux admins ! Vérification en cours...")
+
+# --- CALLBACKS CLIENTS & ADMINS ---
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -943,25 +1000,17 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     ]
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="Markdown")
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if not update.message.photo:
-        return
-    await context.bot.forward_message(
-        chat_id=ADMIN_GROUP_ID,
-        from_chat_id=update.message.chat_id,
-        message_id=update.message.message_id
-    )
-    await update.message.reply_text("📸 Reçu bien reçu ! Un administrateur va vérifier ton paiement sous peu.")
-
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    
+    # Handlers pour les messages textes (ex: #1) et les photos (reçus)
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Enregistrement des commandes admin
+    # Commandes Admin
     application.add_handler(CommandHandler("vendu", admin_vendu))
     application.add_handler(CommandHandler("resto", admin_resto))
     application.add_handler(CommandHandler("ban", admin_ban))
