@@ -23,6 +23,7 @@
         .chip { background-color: var(--card-bg); border: 1px solid var(--card-border); color: var(--secondary-text); padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .chip.active { background-color: #ffffff; color: #000000; }
         .item-card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .item-card h3 { font-size: 14px; margin: 0 0 6px 0; }
         .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--secondary-text); }
         .item-price { font-weight: 900; font-size: 16px; margin-top: 8px; }
         .add-btn { background-color: #ffffff; color: #000000; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 12px; cursor: pointer; }
@@ -63,13 +64,36 @@
         tg.expand();
         const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
         const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK";
-        let products = [];
+        
+        let products = [
+            { id: 1, name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, stock: 1 },
+            { id: 2, name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, stock: 1 },
+            { id: 3, name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, stock: 1 },
+            { id: 4, name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, stock: 1 },
+            { id: 5, name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, stock: 1 },
+            { id: 6, name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, stock: 1 },
+            { id: 7, name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, stock: 1 },
+            { id: 8, name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, stock: 1 },
+            { id: 9, name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, stock: 1 },
+            { id: 10, name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, stock: 1 }
+        ];
+
         let cart = {};
         let currentSize = 'ALL';
 
         async function fetchProducts() {
-            let res = await fetch(`${SUPABASE_URL}/rest/v1/produits?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
-            if (res.ok) { products = await res.json(); renderCatalog(); }
+            try {
+                let res = await fetch(`${SUPABASE_URL}/rest/v1/produits?select=*`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
+                if (res.ok) { 
+                    let data = await res.json();
+                    if (data && data.length > 0) {
+                        products = data;
+                    }
+                }
+            } catch (e) {
+                console.log("Utilisation des produits de secours");
+            }
+            renderCatalog();
         }
 
         function renderCatalog() {
