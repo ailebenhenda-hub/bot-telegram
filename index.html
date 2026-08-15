@@ -171,6 +171,13 @@
             color: #ffffff;
         }
 
+        /* Animation effet cloche / rebond pro */
+        @keyframes popClick {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
         .add-btn {
             background-color: #ffffff;
             color: #000000;
@@ -180,12 +187,12 @@
             font-weight: 700;
             font-size: 12px;
             cursor: pointer;
-            transition: transform 0.1s, background-color 0.2s;
+            transition: background-color 0.2s;
             white-space: nowrap;
         }
 
-        .add-btn:active {
-            transform: scale(0.95);
+        .add-btn.pop-anim {
+            animation: popClick 0.3s ease-in-out;
         }
 
         .add-btn.added {
@@ -414,8 +421,7 @@
     </div>
 
     <div class="catalog-grid" id="catalog-container">
-        <!-- Généré dynamiquement -->
-    </div>
+        </div>
 
     <div class="section-title">⭐ Ce que pensent nos clients</div>
     <div class="reviews-box">
@@ -436,7 +442,6 @@
         </a>
     </div>
 
-    <!-- Barre inférieure du panier -->
     <div class="footer-cart" id="footer-cart-bar">
         <button class="checkout-btn" onclick="openCartModal()">
             <span id="cart-count-label">🛒 0 article(s)</span>
@@ -444,7 +449,6 @@
         </button>
     </div>
 
-    <!-- Modale du Panier Interactif -->
     <div class="cart-modal" id="cartModal">
         <div class="cart-content">
             <div class="cart-header">
@@ -545,8 +549,15 @@
             cart.push(itemId);
             updateCartUI();
 
+            // Déclenche l'animation de rebond (style cloche YouTube)
+            btn.classList.add("pop-anim");
             btn.textContent = "✓ Ajouté";
             btn.classList.add("added");
+
+            setTimeout(() => {
+                btn.classList.remove("pop-anim");
+            }, 300);
+
             setTimeout(() => {
                 btn.textContent = "Ajouter";
                 btn.classList.remove("added");
