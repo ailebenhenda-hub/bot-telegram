@@ -259,7 +259,7 @@
     </div>
 
     <div class="cart-modal" id="cartModal">
-        <div class="cart-content">
+        <div class="cart-content" id="cartContentArea">
             <div class="cart-header">
                 <h2>Mon Panier</h2>
                 <button class="close-cart" onclick="closeCartModal()">&times;</button>
@@ -429,8 +429,23 @@
         }
 
         function openCartModal() {
+            const contentArea = document.getElementById("cartContentArea");
+            contentArea.innerHTML = `
+                <div class="cart-header">
+                    <h2>Mon Panier</h2>
+                    <button class="close-cart" onclick="closeCartModal()">&times;</button>
+                </div>
+                <div class="cart-items-list" id="cartItemsList"></div>
+                <div class="cart-summary">
+                    <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
+                    <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
+                    <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">10 €</span></div>
+                    <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
+                </div>
+                <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
+            `;
+
             const listEl = document.getElementById("cartItemsList");
-            listEl.innerHTML = "";
             cart.forEach((id, index) => {
                 let item = items.find(i => i.id === id);
                 if (item) {
@@ -500,18 +515,30 @@
                     });
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
-                    const btn = document.querySelector('.validate-order-btn');
-                    btn.style.backgroundColor = "#0075ff";
-                    btn.innerHTML = `💳 Payer ${calc.finalTotal} € sur Revolut`;
-                    btn.onclick = function() {
-                        window.open(revolutUrl, '_blank');
-                    };
+                    
+                    // Transformation instantanée du contenu de la modale en message de succès + bouton de retour accueil
+                    const contentArea = document.getElementById("cartContentArea");
+                    contentArea.innerHTML = `
+                        <div class="cart-header">
+                            <h2>Statut du paiement</h2>
+                            <button class="close-cart" onclick="closeCartModal()">&times;</button>
+                        </div>
+                        <div style="text-align: center; padding: 30px 0; display: flex; flex-direction: column; gap: 15px;">
+                            <div style="font-size: 42px;">⭐️</div>
+                            <h3 style="margin: 0; font-size: 18px; color: #ffffff;">Paiement réglé, merci pour votre achat !</h3>
+                            <p style="color: var(--secondary-text); font-size: 13px; margin: 0;">Votre commande a bien été enregistrée et transmise à l'équipe.</p>
+                        </div>
+                        <button class="validate-order-btn" style="background-color: #2c2c2e; color: #ffffff;" onclick="resetStoreAndHome()">🏠 Retour à l'accueil</button>
+                    `;
 
-                    alert("✨ Commande validée ! Clique maintenant sur le bouton bleu pour régler.");
+                    // Ouvre le lien Revolut dans un nouvel onglet
+                    window.open(revolutUrl, '_blank');
 
+                    // Vide le panier en arrière-plan
                     cart = [];
                     updateCartUI();
                     fetchSoldItems();
+
                 } else {
                     let errorData = await response.json();
                     console.error("Erreur Supabase :", errorData);
@@ -521,6 +548,10 @@
                 console.error("Erreur réseau :", err);
                 alert("Erreur de connexion.");
             }
+        }
+
+        function resetStoreAndHome() {
+            closeCartModal();
         }
 
         fetchSoldItems();
