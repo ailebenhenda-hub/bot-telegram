@@ -782,48 +782,114 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    if update.effective_chat.id == ADMIN_GROUP_ID:
+    chat_id = update.effective_chat.id
+
+    if chat_id == ADMIN_GROUP_ID:
+        if update.effective_message.reply_to_message:
+            replied_msg = update.effective_message.reply_to_message.text or update.effective_message.reply_to_message.caption
+            if replied_msg and "CLIENT ID:" in replied_msg:
+                try:
+                    for line in replied_msg.split("\n"):
+                        if "CLIENT ID:" in line:
+                            target_id = int(line.split("CLIENT ID:")[1].strip())
+                            break
+                    else:
+                        return
+
+                    conn = sqlite3.connect("shop.db")
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_id,))
+                    row = cursor.fetchone()
+                    price = row[0] if row else 0
+                    conn.close()
+
+                    kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{target_id}_{price}"),
+                         InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_id}")]
+                    ])
+                    await update.effective_message.reply_text("Reçu reçu de l'admin. Que faire ?", reply_markup=kb)
+                except Exception:
+                    pass
         return
-    
+
+    u_data = get_user(user.id, user.username)
+    if u_data["banned"]:
+        return
+
+    photo_file = await update.message.photo[-1].get_file()
+    photo_bytes = await photo_file.download_as_bytearray()
+
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT order_id, total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
-    res = cursor.fetchone()
+    cursor.execute("SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+    ord_info = cursor.fetchone()
     conn.close()
 
-    if not res:
-        await update.message.reply_text("Reçu bien reçu, mais aucune commande en attente de paiement n'a été trouvée à ton nom.")
+    if not ord_info:
+        await update.message.reply_text("Reçu bien reçu, mais aucune commande en attente n'a été trouvée à ton nom.")
         return
 
-    order_id, price = res[0]
-    photo_file = await update.message.photo[-1].get_file()
-    
+    order_id, total_price, delivery_mode = ord_info
+
+    caption_admin = (
+        f"🚨 **NOUVEAU REÇU DE PAIEMENT REÇU**\n\n"
+        f"👤 Client : {user.first_name} (@{user.username or 'aucun'}) \n"
+        f"🆔 CLIENT ID: {user.id}\n"
+        f"📦 Commande #{order_id} ({delivery_mode})\n"
+        f"💰 Montant attendu : {total_price} €\n\n"
+        f"Vérifie sur Revolut puis clique ci-dessous :"
+    )
+
     kb_admin = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}_{int(price)}"),
+        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}_{total_price}"),
          InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
     ])
 
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
-        photo=photo_file.file_id,
-        caption=f"📸 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username or 'N/A'})\nID : {user.id}\nCmd : #{order_id}\nMontant : {int(price)} €",
-        reply_markup=kb_admin
+        photo=bytes(photo_bytes),
+        caption=caption_admin,
+        reply_markup=kb_admin,
+        parse_mode="Markdown"
     )
-    await update.message.reply_text("📸 Reçu transmis au vendeur ! Validation imminente...")
+
+    await update.message.reply_text("📸 Reçu bien transmis à l'équipe ! Validation en cours (patiente quelques instants)...")
+
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    text = update.message.text.strip()
+    u_data = get_user(user.id, user.username)
+    if u_data["banned"]:
+        return
+
+    if text.startswith("#"):
+        item_id = text[1:]
+        catalog = get_catalog_items()
+        if item_id in catalog:
+            data = catalog[item_id]
+            if not data["available"] and item_id not in reservations:
+                await update.message.reply_text(f"❌ L'article #{item_id} ({data['name']}) est déjà vendu.")
+            elif item_id in reservations:
+                await update.message.reply_text(f"⏳ L'article #{item_id} ({data['name']}) est actuellement réservé par un autre client.")
+            else:
+                add_to_cart(user.id, item_id)
+                await update.message.reply_text(f"✅ Article #{item_id} - {data['name']} ({data['prix']}€) ajouté au panier !")
+        else:
+            await update.message.reply_text("❌ Cet article n'existe pas dans le catalogue.")
 
 
 def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    job_queue = application.job_queue
-    if job_queue:
-        job_queue.run_repeating(check_reservations_job, interval=30, first=10)
+    application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
-    print("🤖 Le bot IDF Running Shop est officiellement lancé et opérationnel !")
+    print("Bot démarré avec succès !")
     application.run_polling()
 
 
