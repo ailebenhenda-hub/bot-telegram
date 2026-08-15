@@ -763,67 +763,53 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u_data["banned"]:
         return
 
-    photo_file = await update.message.photo[-1].get_file()
-    
-    keyboard = [
+    # Récupérer la dernière commande en attente pour ce client
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT order_id, total_price, items_str FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+    order = cursor.fetchone()
+    conn.close()
+
+    total_price = order[1] if order else 0
+    items_str = order[2] if order else "Articles divers"
+
+    # Boutons d'administration pour valider ou refuser la preuve
+    keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}"),
+            InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price}"),
             InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")
         ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    ])
 
-    caption = (
-        f"📸 **REÇU DE PAIEMENT REÇU**\n\n"
-        f"👤 Client : {user.first_name} (@{user.username or 'Non défini'})\n"
-        f"🆔 ID : `{user.id}`\n\n"
-        f"Vérifie le paiement sur Revolut et valide ci-dessous :"
+    username_str = f"@{user.username}" if user.username else user.first_name
+    caption_text = (
+        f"📸 **PREUVE DE PAIEMENT REÇUE**\n\n"
+        f"👤 Client : {username_str} (ID: `{user.id}`)\n"
+        f"📦 Articles : {items_str}\n"
+        f"💰 Montant estimé : {total_price} €"
     )
 
+    # Transférer la photo de la capture d'écran dans le groupe administrateur
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
-        photo=photo_file.file_id,
-        caption=caption,
-        reply_markup=reply_markup,
+        photo=update.message.photo[-1].file_id,
+        caption=caption_text,
+        reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
-    await update.message.reply_text("📤 Reçu transmis à l'équipe ! Validation en cours...")
-
-async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    text = update.message.text.strip()
-    
-    if text.startswith("#"):
-        item_id = text[1:]
-        catalog = get_catalog_items()
-        if item_id in catalog:
-            item = catalog[item_id]
-            if item["available"] and item_id not in reservations:
-                add_to_cart(user.id, item_id)
-                await update.message.reply_text(f"✅ Article #{item_id} ({item['name']} - {item['prix']}€) ajouté au panier !")
-            else:
-                await update.message.reply_text(f"❌ L'article #{item_id} n'est malheureusement plus disponible.")
-        else:
-            await update.message.reply_text("❌ Article introuvable. Tape /start ou utilise le catalogue.")
+    await update.message.reply_text("✅ Reçu bien reçu ! Il a été transmis à l'équipe pour validation.")
 
 def main():
-    if not TELEGRAM_TOKEN:
-        print("Erreur : La variable d'environnement TELEGRAM_TOKEN est manquante.")
-        return
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_callback))
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.ChatType.GROUPS, handle_photo))
 
-    job_queue = app.job_queue
-    job_queue.run_repeating(check_reservations_job, interval=30, first=10)
+    application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
-
-    print("🤖 Bot IDF Running Shop démarré avec succès !")
-    app.run_polling()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
