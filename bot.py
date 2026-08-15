@@ -1,9 +1,9 @@
-import logging
 import os
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from io import BytesIO
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -25,7 +25,9 @@ except ValueError:
 
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_BASE = "https://revolut.me/shvppeur_corp"
+WEBAPP_URL = "https://ailebenhenda-hub.github.io/bot-telegram/"
 
+import logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -114,7 +116,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
 
 
@@ -140,14 +141,6 @@ def add_points(user_id, points):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (points, user_id))
-    conn.commit()
-    conn.close()
-
-
-def set_ban_status(user_id, banned_status):
-    conn = sqlite3.connect("shop.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET banned = ? WHERE user_id = ?", (banned_status, user_id))
     conn.commit()
     conn.close()
 
@@ -259,7 +252,7 @@ def toggle_vip(user_id):
     return status
 
 
-reservations = {}  # item_id -> {"user_id": ..., "expires": datetime, "warned": bool}
+reservations = {}  
 known_users = set()
 delivery_choices = {}
 
@@ -279,7 +272,6 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
         
         elif now >= res["expires"]:
             del reservations[item_id]
-            # Remettre disponible en BDD
             conn = sqlite3.connect("shop.db")
             cursor = conn.cursor()
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
@@ -298,6 +290,7 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
 def get_main_keyboard(user_id):
     vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
     keyboard = [
+        [InlineKeyboardButton("🛍️ Ouvrir la Boutique (Web App)", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
          InlineKeyboardButton("🛒 Mon Panier", callback_data="show_cart")],
         [InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size"),
@@ -339,7 +332,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Boutique indépendante streetwear & vêtements running. 🔥\n"
         "• Port offert dès 170 € d'achat !\n"
         "• Remise de -5€ / article supplémentaire dès 70 € d'achat.\n\n"
-        "Envoie le numéro d'un article (ex: #1) ou gère ton panier !"
+        "Ouvre la Web App ci-dessous ou envoie le numéro d'un article (ex: #1) !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
 
@@ -369,7 +362,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 status = f"• {data['taille']} | {data['etat']} | {data['prix']} €"
                 kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
-            text += f"#{item_id} - {data['name']}\n   {status}\n\n"
+            text += f"#{item_id} - {data['name']}\n    {status}\n\n"
 
         kb_rows.append([InlineKeyboardButton("🛒 Voir mon panier", callback_data="show_cart")])
         kb_rows.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
@@ -464,7 +457,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Ton panier est vide !", show_alert=True)
             return
 
-        # Vérifier si l'un des articles du panier vient d'être pris par quelqu'un d'autre
         for i in cart_items:
             if not catalog[i]["available"] or i in reservations:
                 await query.answer(f"❌ Désolé, l'article #{i} vient d'être réservé par un autre client !", show_alert=True)
@@ -485,7 +477,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         for i in cart_items:
-            # Réserver pour 5 minutes pile
             reservations[i] = {
                 "user_id": user_id,
                 "expires": datetime.now() + timedelta(minutes=5),
@@ -496,7 +487,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
 
-        # Enregistrer la commande en BDD avec statut "En attente"
         items_str = ", ".join(item_names)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -650,11 +640,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-        # Mettre à jour les réservations et le statut des commandes
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         
-        # Trouver la dernière commande en attente de cet utilisateur
         cursor.execute("SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_id,))
         ord_res = cursor.fetchone()
         order_id = ord_res[0] if ord_res else 0
@@ -672,7 +660,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
 
-        # Générer la facture PDF automatiquement
         pdf_buffer = generate_invoice_pdf(target_id, order_id, items_summary, price, del_mode)
 
         await context.bot.send_message(
@@ -717,7 +704,6 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
-    # En-tête
     c.setFont("Helvetica-Bold", 20)
     c.drawString(50, height - 50, "IDF RUNNING SHOP")
     
@@ -725,18 +711,15 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     c.drawString(50, height - 70, "Boutique Streetwear & Running Second-Main")
     c.drawString(50, height - 85, "contact: @idf_runningshop")
 
-    # Infos Facture
     c.setFont("Helvetica-Bold", 12)
     c.drawString(400, height - 50, f"FACTURE #{order_id}")
     c.setFont("Helvetica", 10)
     c.drawString(400, height - 68, f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     c.drawString(400, height - 85, f"Client ID: {user_id}")
 
-    # Ligne de séparation
     c.setLineWidth(1)
     c.line(50, height - 110, width - 50, height - 110)
 
-    # Détails
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, height - 140, "Désignation des articles :")
     c.setFont("Helvetica", 10)
@@ -746,7 +729,6 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
 
     c.line(50, height - 220, width - 50, height - 220)
 
-    # Total
     c.setFont("Helvetica-Bold", 14)
     c.drawString(350, height - 250, f"TOTAL PAYÉ : {amount} €")
 
@@ -798,214 +780,51 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="Markdown")
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) == str(ADMIN_GROUP_ID):
-        return
-
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    known_users.add(user.id)
-    u_data = get_user(user.id, user.username)
-    if u_data["banned"]:
+    if update.effective_chat.id == ADMIN_GROUP_ID:
         return
-
-    if update.message.photo:
-        photo = update.message.photo[-1].file_id
-
-        total_price_with_shipping = 0
-        current_delivery = delivery_choices.get(user.id, "colissimo")
-        catalog = get_catalog_items()
-        for item_id, res_data in reservations.items():
-            if res_data["user_id"] == user.id:
-                raw_price = catalog[item_id]["prix"]
-                shipping = 0 if current_delivery == "click_collect" else (6 if raw_price < 170 else 0)
-                total_price_with_shipping = raw_price + shipping
-                break
-        
-        if u_data["discount_coupon"] > 0:
-            total_price_with_shipping = max(0, total_price_with_shipping - 5)
-
-        admin_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price_with_shipping}"),
-             InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
-        ])
-        await context.bot.send_photo(
-            chat_id=ADMIN_GROUP_ID,
-            photo=photo,
-            caption=(
-                f"💳 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username})\nID : {user.id}\nMontant : {total_price_with_shipping} €"
-            ),
-            reply_markup=admin_kb,
-        )
-        await update.message.reply_text("✅ Reçu transmis ! On valide ta commande rapidement.")
-        return
-
-    text = update.message.text.strip()
-    catalog = get_catalog_items()
-
-    if text.startswith("#") and text[1:].isdigit():
-        item_id = text[1:]
-        if item_id in catalog:
-            item = catalog[item_id]
-            if not item["available"]:
-                await update.message.reply_text("❌ Cet article est vendu ! Veux-tu être alerté s'il revient ?", 
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔔 M'alerter", callback_data=f"alert_{item_id}")]]))
-                return
-
-            add_to_cart(user.id, item_id)
-            await update.message.reply_text(
-                f"✅ Article #{item_id} ({item['name']}) ajouté au panier !",
-                reply_markup=get_main_keyboard(user.id)
-            )
-            return
-
-    await update.message.reply_text(
-        "Tape le numéro d'un article (ex: #1) ou utilise le catalogue.",
-        reply_markup=get_main_keyboard(user.id),
-    )
-
-
-# --- COMMANDES ADMIN ---
-async def cmd_additem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    # Format: /additem Nom | Taille | État | Prix | ID
-    try:
-        args_text = " ".join(context.args)
-        parts = [p.strip() for p in args_text.split("|")]
-        if len(parts) < 5:
-            await update.message.reply_text("Utilisation : `/additem Nom | Taille | État | Prix | ID`", parse_mode="Markdown")
-            return
-        
-        name, taille, etat, prix, item_id = parts[0], parts[1], parts[2], float(parts[3]), parts[4]
-        
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO catalog (item_id, name, taille, etat, prix, available) VALUES (?, ?, ?, ?, ?, 1)",
-                       (item_id, name, taille, etat, prix))
-        conn.commit()
-        conn.close()
-
-        await update.message.reply_text(f"✅ Article #{item_id} ({name}) ajouté avec succès au catalogue BDD !")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Erreur : {e}")
-
-
-async def cmd_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if len(context.args) >= 2:
-        order_id = int(context.args[0])
-        tracking_num = context.args[1]
-
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM orders WHERE order_id = ?", (order_id,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            await update.message.reply_text("❌ Commande introuvable.")
-            return
-        target_id = row[0]
-        cursor.execute("UPDATE orders SET status = 'Expédié', tracking_num = ? WHERE order_id = ?", (tracking_num, order_id))
-        conn.commit()
-        conn.close()
-
-        tracking_link = f"https://www.laposte.fr/outils/suivre-vos-envois?code={tracking_num}"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚚 Suivre mon colis La Poste", url=tracking_link)]])
-
-        try:
-            await context.bot.send_message(
-                chat_id=target_id,
-                text=f"📦 **TA COMMANDE #{order_id} A ÉTÉ EXPÉDIÉE !**\n\nNuméro de suivi : `{tracking_num}`",
-                reply_markup=kb,
-                parse_mode="Markdown",
-            )
-            await update.message.reply_text(f"✅ Suivi envoyé au client pour la commande #{order_id}.")
-        except Exception as e:
-            await update.message.reply_text(f"❌ Erreur d'envoi : {e}")
-    else:
-        await update.message.reply_text("Utilisation : `/suivi ID_COMMANDE NUMERO_COLISSIMO`", parse_mode="Markdown")
-
-
-async def cmd_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if context.args and context.args[0] in get_catalog_items():
-        item_id = context.args[0]
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
-        conn.commit()
-        conn.close()
-        await update.message.reply_text(f"❌ Article #{item_id} marqué comme VENDU.")
-
-
-async def cmd_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    if context.args and context.args[0] in get_catalog_items():
-        item_id = context.args[0]
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
-        cursor.execute("SELECT user_id FROM wishlist WHERE item_id = ?", (item_id,))
-        users_to_notify = cursor.fetchall()
-        conn.close()
-
-        for u in users_to_notify:
-            try:
-                await context.bot.send_message(chat_id=u[0], text=f"🔔 **RESTOCK !** L'article #{item_id} est de nouveau dispo !")
-            except Exception:
-                continue
-
-        await update.message.reply_text(f"✅ Article #{item_id} remis en stock.")
-
-
-async def cmd_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
-    message = " ".join(context.args)
-    if not message: return
-    count = 0
-    for uid in known_users:
-        try:
-            await context.bot.send_message(chat_id=uid, text=f"📢 **ANNONCE**\n\n{message}", parse_mode="Markdown")
-            count += 1
-        except Exception:
-            continue
-    await update.message.reply_text(f"🚀 Annonce envoyée à {count} clients.")
-
-
-async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_chat.id) != str(ADMIN_GROUP_ID):
-        return
+    
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT total_sales, revenue FROM stats WHERE id = 1")
-    row = cursor.fetchone()
+    cursor.execute("SELECT order_id, total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+    res = cursor.fetchone()
     conn.close()
-    sales, revenue = row if row else (0, 0.0)
-    await update.message.reply_text(f"📊 Ventes : **{sales}** | CA : **{revenue:.2f} €**", parse_mode="Markdown")
+
+    if not res:
+        await update.message.reply_text("Reçu bien reçu, mais aucune commande en attente de paiement n'a été trouvée à ton nom.")
+        return
+
+    order_id, price = res[0]
+    photo_file = await update.message.photo[-1].get_file()
+    
+    kb_admin = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Valider le paiement", callback_data=f"confirm_pay_{user.id}_{int(price)}"),
+         InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
+    ])
+
+    await context.bot.send_photo(
+        chat_id=ADMIN_GROUP_ID,
+        photo=photo_file.file_id,
+        caption=f"📸 REÇU DE PAIEMENT REÇU\nClient : {user.first_name} (@{user.username or 'N/A'})\nID : {user.id}\nCmd : #{order_id}\nMontant : {int(price)} €",
+        reply_markup=kb_admin
+    )
+    await update.message.reply_text("📸 Reçu transmis au vendeur ! Validation imminente...")
 
 
 def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    job_queue = app.job_queue
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_callback))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    job_queue = application.job_queue
     if job_queue:
-        job_queue.run_repeating(check_reservations_job, interval=30, first=5)
+        job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("additem", cmd_additem))
-    app.add_handler(CommandHandler("suivi", cmd_suivi))
-    app.add_handler(CommandHandler("vendu", cmd_vendu))
-    app.add_handler(CommandHandler("resto", cmd_resto))
-    app.add_handler(CommandHandler("annonce", cmd_annonce))
-    app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-
-    app.run_polling()
+    print("🤖 Le bot IDF Running Shop est officiellement lancé et opérationnel !")
+    application.run_polling()
 
 
 if __name__ == "__main__":
