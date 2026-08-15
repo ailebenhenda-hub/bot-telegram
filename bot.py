@@ -763,7 +763,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if u_data["banned"]:
         return
 
-    # Récupérer la dernière commande en attente pour ce client
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("SELECT order_id, total_price, items_str FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
@@ -773,7 +772,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_price = order[1] if order else 0
     items_str = order[2] if order else "Articles divers"
 
-    # Boutons d'administration pour valider ou refuser la preuve
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price}"),
@@ -789,7 +787,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 Montant estimé : {total_price} €"
     )
 
-    # Transférer la photo de la capture d'écran dans le groupe administrateur
     await context.bot.send_photo(
         chat_id=ADMIN_GROUP_ID,
         photo=update.message.photo[-1].file_id,
@@ -805,7 +802,8 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.PHOTO & ~filters.ChatType.GROUPS, handle_photo))
+    # Filtre corrigé pour écouter uniquement les messages privés des utilisateurs
+    application.add_handler(MessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, handle_photo))
 
     application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
