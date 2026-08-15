@@ -7,10 +7,11 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
+            --bg-color: #0d0d0d;
+            --card-bg: #1a1a1a;
             --text-color: #ffffff;
-            --secondary-text: #b0b0b0;
+            --secondary-text: #999999;
+            --accent-color: #2ecc71;
             --button-bg: #ffffff;
             --button-text: #000000;
         }
@@ -21,15 +22,18 @@
             color: var(--text-color);
             margin: 0;
             padding: 15px;
+            padding-bottom: 90px;
         }
 
         header {
             text-align: center;
             margin-bottom: 20px;
+            padding-top: 10px;
         }
 
         h1 {
-            font-size: 22px;
+            font-size: 24px;
+            font-weight: 800;
             margin: 0 0 5px 0;
             letter-spacing: 0.5px;
         }
@@ -38,62 +42,82 @@
             color: var(--secondary-text);
             font-size: 13px;
             margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .banner {
-            background: linear-gradient(135deg, #2b2b2b, #1a1a1a);
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 12px;
+            background: linear-gradient(135deg, #1f1f1f, #141414);
+            border: 1px solid #2c2c2c;
+            border-radius: 14px;
+            padding: 14px;
             text-align: center;
             font-size: 13px;
             margin-bottom: 20px;
-            color: #ddd;
+            color: #e0e0e0;
+            line-height: 1.4;
         }
 
         .catalog-grid {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            margin-bottom: 80px;
         }
 
         .item-card {
             background-color: var(--card-bg);
-            border: 1px solid #2a2a2a;
-            border-radius: 14px;
-            padding: 15px;
+            border: 1px solid #262626;
+            border-radius: 16px;
+            padding: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .item-info {
+            flex-grow: 1;
+            padding-right: 10px;
         }
 
         .item-info h3 {
             font-size: 15px;
-            margin: 0 0 5px 0;
+            font-weight: 700;
+            margin: 0 0 6px 0;
         }
 
         .item-details {
             font-size: 12px;
             color: var(--secondary-text);
+            margin-bottom: 8px;
         }
 
         .item-price {
-            font-weight: bold;
-            font-size: 16px;
+            font-weight: 800;
+            font-size: 17px;
             color: var(--text-color);
-            margin-top: 5px;
         }
 
         .add-btn {
             background-color: var(--button-bg);
             color: var(--button-text);
             border: none;
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-weight: 600;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 700;
             font-size: 13px;
             cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+            white-space: nowrap;
+        }
+
+        .add-btn:active {
+            transform: scale(0.95);
+        }
+
+        .add-btn.added {
+            background-color: #27ae60;
+            color: #ffffff;
         }
 
         .footer-cart {
@@ -101,10 +125,12 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: #1a1a1a;
-            border-top: 1px solid #333;
+            background-color: rgba(18, 18, 18, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #262626;
             padding: 15px;
             text-align: center;
+            z-index: 100;
         }
 
         .checkout-btn {
@@ -112,11 +138,12 @@
             color: #000000;
             border: none;
             width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            font-weight: bold;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 800;
             font-size: 15px;
             cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -128,15 +155,14 @@
     </header>
 
     <div class="banner">
-        🔥 Port offert dès 170 € d'achat ! Remise de -5€ par article supp. dès 70€.
+        🔥 <strong>Port offert</strong> dès 170 € d'achat !<br>Remise de <strong>-5€</strong> par article supp. dès 70€.
     </div>
 
     <div class="catalog-grid" id="catalog-container">
-        <!-- Articles chargés dynamiquement -->
-    </div>
+        </div>
 
     <div class="footer-cart">
-        <button class="checkout-btn" onclick="openBotChat()">💬 Gérer mon panier via le Bot</button>
+        <button class="checkout-btn" onclick="openBotCart()">🛒 Gérer mon panier via le Bot</button>
     </div>
 
     <script>
@@ -149,7 +175,11 @@
             { id: "3", name: "Pantalon Nike Phenom Elite", taille: "L", etat: "Excellent", prix: 90 },
             { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
             { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90 },
-            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 }
+            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 },
+            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35 },
+            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30 },
+            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70 },
+            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80 }
         ];
 
         const container = document.getElementById("catalog-container");
@@ -160,20 +190,29 @@
             card.innerHTML = `
                 <div class="item-info">
                     <h3>#${item.id} - ${item.name}</h3>
-                    <div class="item-details">Taille : ${item.taille} | État : ${item.etat}</div>
+                    <div class="item-details">Taille : ${item.taille} &bull; État : ${item.etat}</div>
                     <div class="item-price">${item.prix} €</div>
                 </div>
-                <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
+                <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
             `;
             container.appendChild(card);
         });
 
-        function addToCart(itemId) {
+        function addToCart(itemId, buttonElement) {
+            // Envoie l'ID au bot Telegram
             tg.sendData(itemId);
-            tg.close();
+            
+            // Effet visuel temporaire sur le bouton
+            buttonElement.textContent = "✓ Ajouté";
+            buttonElement.classList.add("added");
+            
+            setTimeout(() => {
+                buttonElement.textContent = "Ajouter";
+                buttonElement.classList.remove("added");
+            }, 1200);
         }
 
-        function openBotChat() {
+        function openBotCart() {
             tg.close();
         }
     </script>
