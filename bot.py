@@ -6,6 +6,7 @@ from io import BytesIO
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import (
     Application,
+    ApplicationBuilder,
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
@@ -96,7 +97,6 @@ def init_db():
     """)
     cursor.execute("INSERT OR IGNORE INTO stats (id, total_sales, revenue) VALUES (1, 0, 0.0)")
     
-    # Ajouter quelques articles par défaut si la table est vide
     cursor.execute("SELECT COUNT(*) FROM catalog")
     if cursor.fetchone()[0] == 0:
         default_items = [
@@ -880,7 +880,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_callback))
