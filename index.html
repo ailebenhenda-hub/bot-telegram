@@ -7,12 +7,13 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --bg-color: #0b0b0b;
-            --card-bg: #161616;
+            --bg-color: #080808;
+            --card-bg: rgba(22, 22, 22, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
             --text-color: #ffffff;
-            --secondary-text: #888888;
+            --secondary-text: #8e8e93;
             --accent: #ffffff;
-            --border-color: #222222;
+            --success: #34c759;
         }
 
         body {
@@ -20,21 +21,24 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 12px;
-            padding-bottom: 95px;
+            padding: 14px;
+            padding-bottom: 110px;
         }
 
         header {
             text-align: center;
             margin-bottom: 15px;
-            padding-top: 5px;
+            padding-top: 10px;
         }
 
         h1 {
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 900;
-            margin: 0 0 3px 0;
+            margin: 0 0 4px 0;
             letter-spacing: 0.5px;
+            background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         p.subtitle {
@@ -42,45 +46,49 @@
             font-size: 11px;
             margin: 0;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 2px;
+            font-weight: 600;
         }
 
         .banner {
-            background: linear-gradient(135deg, #181818, #111111);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 12px;
+            background: linear-gradient(135deg, rgba(30,30,30,0.8), rgba(15,15,15,0.9));
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(10px);
+            border-radius: 14px;
+            padding: 14px;
             text-align: center;
             font-size: 12px;
-            margin-bottom: 15px;
-            color: #d0d0d0;
+            margin-bottom: 16px;
+            color: #d1d1d6;
             line-height: 1.4;
         }
 
         /* Barre de recherche et filtres */
         .search-box {
             width: 100%;
-            padding: 12px 15px;
+            padding: 13px 16px;
             background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(10px);
+            border-radius: 14px;
             color: white;
             font-size: 14px;
             margin-bottom: 12px;
             box-sizing: border-box;
             outline: none;
+            transition: border-color 0.2s;
         }
 
         .search-box:focus {
-            border-color: #555;
+            border-color: rgba(255,255,255,0.3);
         }
 
         .filter-chips {
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
+            margin-bottom: 16px;
+            padding-bottom: 4px;
             scrollbar-width: none;
         }
 
@@ -90,9 +98,9 @@
 
         .chip {
             background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--card-border);
             color: var(--secondary-text);
-            padding: 6px 14px;
+            padding: 7px 16px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
@@ -111,44 +119,47 @@
         .catalog-grid {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
 
         .item-card {
             background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            padding: 14px;
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
         .item-info {
             flex-grow: 1;
-            padding-right: 10px;
+            padding-right: 12px;
         }
 
         .item-info h3 {
             font-size: 14px;
             font-weight: 700;
-            margin: 0 0 5px 0;
-            color: #f0f0f0;
+            margin: 0 0 6px 0;
+            color: #ffffff;
         }
 
         .item-meta {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             font-size: 11px;
             color: var(--secondary-text);
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .badge {
-            background: #222;
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #ccc;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.04);
+            padding: 2px 8px;
+            border-radius: 6px;
+            color: #d1d1d6;
         }
 
         .item-price {
@@ -161,8 +172,8 @@
             background-color: #ffffff;
             color: #000000;
             border: none;
-            border-radius: 8px;
-            padding: 9px 14px;
+            border-radius: 10px;
+            padding: 10px 16px;
             font-weight: 700;
             font-size: 12px;
             cursor: pointer;
@@ -174,22 +185,16 @@
             transform: scale(0.95);
         }
 
-        .add-btn.added {
-            background-color: #27ae60;
-            color: #ffffff;
-        }
-
         /* Panier fixe en bas */
         .footer-cart {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: rgba(11, 11, 11, 0.95);
-            backdrop-filter: blur(12px);
-            border-top: 1px solid var(--border-color);
-            padding: 12px 15px;
-            text-align: center;
+            background-color: rgba(8, 8, 8, 0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--card-border);
+            padding: 14px 16px;
             z-index: 100;
         }
 
@@ -198,12 +203,133 @@
             color: #000000;
             border: none;
             width: 100%;
-            padding: 13px;
-            border-radius: 10px;
+            padding: 14px;
+            border-radius: 12px;
             font-weight: 800;
             font-size: 14px;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(255,255,255,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(255,255,255,0.12);
+        }
+
+        /* Modal du Panier (Pop-up intégrée) */
+        .cart-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-end;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .cart-content {
+            background-color: #141416;
+            border-top: 1px solid var(--card-border);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 20px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .cart-header h2 {
+            font-size: 18px;
+            font-weight: 800;
+            margin: 0;
+        }
+
+        .close-cart {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .cart-items-list {
+            overflow-y: auto;
+            max-height: 35vh;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .cart-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.03);
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .remove-item {
+            color: #ff453a;
+            background: none;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .cart-summary {
+            border-top: 1px solid var(--card-border);
+            padding-top: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: var(--secondary-text);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .summary-row.total {
+            color: white;
+            font-weight: 900;
+            font-size: 16px;
+            margin-top: 6px;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+            padding-top: 8px;
+        }
+
+        .validate-order-btn {
+            background-color: #34c759;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            text-align: center;
         }
 
         .no-result {
@@ -211,6 +337,11 @@
             color: var(--secondary-text);
             font-size: 13px;
             padding: 30px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
 </head>
@@ -225,10 +356,8 @@
         🔥 <strong>Port offert</strong> dès 170 € d'achat !<br>Remise de <strong>-5€</strong> par article supp. dès 70€.
     </div>
 
-    <!-- Barre de recherche -->
-    <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article (ex: Trail, Aeroswift...)" oninput="filterCatalog()">
+    <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article..." oninput="filterCatalog()">
 
-    <!-- Filtres par taille -->
     <div class="filter-chips">
         <div class="chip active" onclick="setFilter('ALL', this)">Tout</div>
         <div class="chip" onclick="setFilter('S', this)">Taille S</div>
@@ -238,11 +367,46 @@
     </div>
 
     <div class="catalog-grid" id="catalog-container">
-        <!-- Généré dynamiquement -->
+        </div>
+
+    <div class="footer-cart" id="footer-cart-bar" style="display: none;">
+        <button class="checkout-btn" onclick="openCartModal()">
+            <span id="cart-count-label">🛒 0 article(s)</span>
+            <span id="cart-total-preview">0 € &rarr; Voir le panier</span>
+        </button>
     </div>
 
-    <div class="footer-cart">
-        <button class="checkout-btn" onclick="openBotCart()">🛒 Voir mon panier / Gérer via le Bot</button>
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-content">
+            <div class="cart-header">
+                <h2>Mon Panier</h2>
+                <button class="close-cart" onclick="closeCartModal()">&times;</button>
+            </div>
+            
+            <div class="cart-items-list" id="cartItemsList">
+                </div>
+
+            <div class="cart-summary">
+                <div class="summary-row">
+                    <span>Sous-total :</span>
+                    <span id="subtotalAmount">0 €</span>
+                </div>
+                <div class="summary-row">
+                    <span>Remise ((-5€ / art. dès 70€)) :</span>
+                    <span id="discountAmount" style="color: #34c759;">-0 €</span>
+                </div>
+                <div class="summary-row">
+                    <span>Frais de port :</span>
+                    <span id="shippingAmount">10 €</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total à régler :</span>
+                    <span id="finalTotalAmount">0 €</span>
+                </div>
+            </div>
+
+            <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander via le Bot</button>
+        </div>
     </div>
 
     <script>
@@ -263,6 +427,7 @@
         ];
 
         let currentSize = 'ALL';
+        let cart = []; // Liste des IDs d'articles ajoutés
 
         function renderCatalog(filterText = '') {
             const container = document.getElementById("catalog-container");
@@ -291,7 +456,7 @@
                         </div>
                         <div class="item-price">${item.prix} €</div>
                     </div>
-                    <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
+                    <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
                 `;
                 container.appendChild(card);
             });
@@ -301,32 +466,107 @@
             currentSize = size;
             document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
             element.classList.add('active');
-            const searchText = document.getElementById('search-input').value;
-            renderCatalog(searchText);
+            renderCatalog(document.getElementById('search-input').value);
         }
 
         function filterCatalog() {
-            const searchText = document.getElementById('search-input').value;
-            renderCatalog(searchText);
+            renderCatalog(document.getElementById('search-input').value);
         }
 
-        function addToCart(itemId, buttonElement) {
-            tg.sendData(itemId);
+        function addToCart(itemId) {
+            cart.push(itemId);
+            updateCartUI();
             
-            buttonElement.textContent = "✓ Ajouté";
-            buttonElement.classList.add("added");
-            
-            setTimeout(() => {
-                buttonElement.textContent = "Ajouter";
-                buttonElement.classList.remove("added");
-            }, 1000);
+            // Petit retour haptique si supporté par Telegram
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
         }
 
-        function openBotCart() {
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+            if (cart.length === 0) {
+                closeCartModal();
+            }
+        }
+
+        function updateCartUI() {
+            const footerBar = document.getElementById("footer-cart-bar");
+            if (cart.length > 0) {
+                footerBar.style.display = "block";
+                document.getElementById("cart-count-label").textContent = `🛒 ${cart.length} article(s)`;
+                
+                let calculations = calculateTotals();
+                document.getElementById("cart-total-preview").textContent = `${calculations.finalTotal} € ➔ Panier`;
+            } else {
+                footerBar.style.display = "none";
+            }
+        }
+
+        function calculateTotals() {
+            let subtotal = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item) subtotal += item.prix;
+            });
+
+            // Règle de remise : -5€ par article supplémentaire dès 70€ d'achat par article (ou appliqué globalement selon ta règle)
+            let discount = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item && item.prix >= 70) {
+                    discount += 5; 
+                }
+            });
+
+            let shipping = (subtotal - discount >= 170) ? 0 : 10;
+            let finalTotal = subtotal - discount + shipping;
+            if (finalTotal < 0) finalTotal = 0;
+
+            return { subtotal, discount, shipping, finalTotal };
+        }
+
+        function openCartModal() {
+            const listEl = document.getElementById("cartItemsList");
+            listEl.innerHTML = "";
+
+            cart.forEach((id, index) => {
+                let item = items.find(i => i.id === id);
+                if (item) {
+                    const row = document.createElement("div");
+                    row.className = "cart-item-row";
+                    row.innerHTML = `
+                        <span>#${item.id} - ${item.name} (${item.taille})</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <strong>${item.prix} €</strong>
+                            <button class="remove-item" onclick="removeFromCart(${index})">&times;</button>
+                        </div>
+                    `;
+                    listEl.appendChild(row);
+                }
+            });
+
+            let calc = calculateTotals();
+            document.getElementById("subtotalAmount").textContent = calc.subtotal + " €";
+            document.getElementById("discountAmount").textContent = "-" + calc.discount + " €";
+            document.getElementById("shippingAmount").textContent = calc.shipping === 0 ? "Offert 🎉" : calc.shipping + " €";
+            document.getElementById("finalTotalAmount").textContent = calc.finalTotal + " €";
+
+            document.getElementById("cartModal").style.display = "flex";
+        }
+
+        function closeCartModal() {
+            document.getElementById("cartModal").style.display = "none";
+        }
+
+        function sendOrderToBot() {
+            if (cart.length === 0) return;
+            // Envoie la liste des IDs au bot (ex: "1,3,5")
+            tg.sendData(cart.join(','));
             tg.close();
         }
 
-        // Initialisation au chargement
         renderCatalog();
     </script>
 </body>
