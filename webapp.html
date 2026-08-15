@@ -34,6 +34,22 @@
             font-weight: 600;
             cursor: pointer;
         }
+        .social-section {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid var(--tg-theme-hint-color, #ddd);
+        }
+        .social-btn {
+            display: inline-block;
+            background-color: #000000;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -41,16 +57,26 @@
     <div id="catalog-list">
         </div>
 
+    <div class="social-section">
+        <a href="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98tc8iPs6VS" target="_blank" class="social-btn">📱 Voir notre TikTok</a>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand(); // Ouvre la Web App en plein écran
 
-        // Liste des articles disponibles (simulée ou récupérée)
+        // Liste des articles disponibles
         const items = [
             { id: "1", name: "Pantalon Nike Trail", size: "S", price: 60 },
             { id: "2", name: "Pantalon Nike Aeroswift", size: "M", price: 75 },
             { id: "3", name: "Pantalon Nike Phenom Elite", size: "L", price: 90 },
-            { id: "4", name: "Sweat Nike Tech Aviateur v1", size: "M", price: 60 }
+            { id: "4", name: "Sweat Nike Tech Aviateur v1", size: "M", price: 60 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", size: "L", price: 90 },
+            { id: "6", name: "Tee-Shirt Nike Trail", size: "S", price: 40 },
+            { id: "7", name: "Tee-Shirt Nike Running Division", size: "M", price: 35 },
+            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", size: "S", price: 30 },
+            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", size: "S", price: 70 },
+            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", size: "S", price: 80 }
         ];
 
         const container = document.getElementById('catalog-list');
