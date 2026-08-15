@@ -433,7 +433,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
         
-        # Envoi interactif du suivi au client avec lien direct vers La Poste
         track_url = f"https://www.laposte.fr/outils/suivre-vos-envois?code={tracking}"
         await context.bot.send_message(
             chat_id=target_id, 
