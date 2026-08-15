@@ -491,7 +491,7 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Erreur lors de la génération : {e}")
 
-# --- GESTION MESSAGES TEXTE (ex: #1) ET PHOTOS ---
+# --- GESTION MESSAGES TEXTE ET PHOTOS ---
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -521,24 +521,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+    cursor.execute(
+        "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", 
+        (user.id,)
+    )
     order = cursor.fetchone()
     
     if not order:
         date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
         cursor.execute(
             "INSERT INTO orders (user_id, items_str, total_price, delivery_mode, status, date) VALUES (?, ?, ?, ?, ?, ?)",
-            (user.id, "Panier Web App", 0.0, "Web App", "En attente de paiement", date_str)
+            (user.id, "Panier / Web App", 0.0, "Web App", "En attente de paiement", date_str)
         )
         conn.commit()
-        cursor.execute("SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+        cursor.execute(
+            "SELECT order_id, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", 
+            (user.id,)
+        )
         order = cursor.fetchone()
 
     conn.close()
 
     order_id, total_price, delivery_mode = order
-
-    source_text = "Payé via la Web App" if delivery_mode == "Web App" else "Payé via le Telegram"
+    source_text = "Payé via la Web App" if delivery_mode == "Web App" else "Payé via Telegram"
 
     forwarded = await context.bot.forward_message(
         chat_id=ADMIN_GROUP_ID,
