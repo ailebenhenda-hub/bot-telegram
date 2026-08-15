@@ -523,11 +523,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor = conn.cursor()
     cursor.execute("SELECT order_id, total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
     order = cursor.fetchone()
-    conn.close()
-
+    
     if not order:
-        await update.message.reply_text("❌ Aucune commande en attente de paiement trouvée à ton nom. Clique d'abord sur 'Valider et Payer' dans ton panier !")
-        return
+        date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+        cursor.execute(
+            "INSERT INTO orders (user_id, items_str, total_price, delivery_mode, status, date) VALUES (?, ?, ?, ?, ?, ?)",
+            (user.id, "Commande Web App", 0.0, "Web App", "En attente de paiement", date_str)
+        )
+        conn.commit()
+        cursor.execute("SELECT order_id, total_price FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (user.id,))
+        order = cursor.fetchone()
+
+    conn.close()
 
     order_id, total_price = order
 
@@ -757,308 +764,242 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 text += f"• **Cmd #{o[0]}** ({o[6]})\n"
                 text += f"  {o[1]}\n"
-                text += f"  Montant : {o[2]} € | Statut : {status_icon} *{o[4]}*\n"
+                text += f"  Statut : {status_icon} {o[4]}\n"
                 if o[5]:
-                    text += f"  Suivi La Poste : `{o[5]}`\n"
-                    track_url = f"https://www.laposte.fr/outils/suivre-vos-envois?code={o[5]}"
-                    kb_buttons.append([InlineKeyboardButton(f"🔍 Suivre Cmd #{o[0]} (La Poste)", url=track_url)])
+                    text += f"  Suivi : `{o[5]}`\n"
                 text += "\n"
+                
+                if o[5]:
+                    track_url = f"https://www.laposte.fr/outils/suivre-vos-envois?code={o[5]}"
+                    kb_buttons.append([InlineKeyboardButton(f"🔍 Suivre Cmd #{o[0]}", url=track_url)])
             
             kb_buttons.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
             kb_orders = InlineKeyboardMarkup(kb_buttons)
             
         await query.edit_message_text(text=text, reply_markup=kb_orders, parse_mode="Markdown")
 
-    elif query.data.startswith("take_"):
-        target_id = int(query.data.split("_")[1])
-        current_text = query.message.text
-        if "Pris en charge par" not in current_text:
-            new_text = current_text + f"\n\n🛠️ Pris en charge par {admin_name}"
-            await query.edit_message_text(text=new_text, reply_markup=query.message.reply_markup)
-        else:
-            await query.answer("Cette commande a déjà été prise en charge.", show_alert=True)
-
     elif query.data == "show_referral":
-        bot_username = context.bot.username
+        bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-        coupons = u_data["discount_coupon"]
         text = (
-            "🤝 **PROGRAMME DE PARRAINAGE**\n\n"
-            "Invite tes amis ! S'ils achètent dans les **7 jours**, **tu gagnes un bon de -5 €**.\n\n"
-            f"🎟️ Bons -5 € disponibles : **{coupons}**\n\n"
-            f"🔗 Lien personnel :\n`{ref_link}`"
+            f"🤝 **PROGRAMME DE PARRAINAGE**\n\n"
+            f"Partage ton lien unique à tes amis :\n`{ref_link}`\n\n"
+            f"🎁 **Ton avantage :** Gagne un bon de **-5 €** cumulable dès qu'un de tes filleuls valide un premier achat !\n"
+            f"🛍️ **Son avantage :** Il rejoint le programme et profite de la boutique.\n\n"
+            f"🎟️ Tes bons de réduction disponibles : **{u_data['discount_coupon']}**"
         )
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
-
-    elif query.data == "toggle_vip_status":
-        status = toggle_vip(user_id)
-        msg_text = "✅ Inscrit aux VIP Drops !" if status else "❌ Désinscrit des VIP Drops."
-        await query.answer(msg_text, show_alert=True)
-        await query.edit_message_reply_markup(reply_markup=get_main_keyboard(user_id))
-
-    elif query.data == "filter_size":
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Taille S", callback_data="size_S"),
-             InlineKeyboardButton("Taille M", callback_data="size_M")],
-            [InlineKeyboardButton("Taille L", callback_data="size_L"),
-             InlineKeyboardButton("Taille XL", callback_data="size_XL")],
-            [InlineKeyboardButton("🔙 Retour", callback_data="show_catalog")]
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
         ])
-        await query.edit_message_text("Sélectionne ta taille :", reply_markup=kb)
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
+
+    elif query.data == "show_points":
+        text = (
+            f"⭐ **PROGRAMME FIDÉLITÉ**\n\n"
+            f"• Points actuels : **{u_data['points']} pts**\n\n"
+            f"Cumule des points à chaque commande pour remporter des cadeaux et des réductions exclusives !"
+        )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+        ])
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
 
     elif query.data == "size_guide":
         text = (
-            "📏 GUIDE DES TAILLES\n\n"
-            "• Nike Aeroswift : Coupe très ajustée. Prends une taille au-dessus si tu hésites.\n"
-            "• Phenom Elite : Coupe fuselée standard.\n"
-            "• Tech Fleece : Taille normalement."
+            "📏 **GUIDE DES TAILLES (NIKE / STREETWEAR)**\n\n"
+            "• **S** : 1m65 - 1m72 / 55 - 65 kg\n"
+            "• **M** : 1m70 - 1m78 / 65 - 75 kg\n"
+            "• **L** : 1m78 - 1m85 / 75 - 85 kg\n"
+            "• **XL** : 1m85+ / 85 kg+\n\n"
+            "En cas de doute, contacte directement le vendeur !"
         )
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📲 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")],
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+        ])
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
 
     elif query.data == "click_and_collect_info":
         text = (
-            "🤝 **CLICK & COLLECT (IDF)**\n\n"
-            "📍 Lieux : Gares d'Île-de-France ou secteur 93.\n"
-            "💰 Frais : 100% Gratuit !\n"
-            "Choisis l'option directement dans ton panier."
+            "🤝 **CLICK & COLLECT (ÎLE-DE-FRANCE)**\n\n"
+            "Viens récupérer ta commande en main propre gratuitement en IDF (lieu convenu avec le vendeur).\n"
+            "Sélectionne l'option correspondante directement dans ton panier au moment du paiement !"
         )
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id), parse_mode="Markdown")
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+        ])
+        await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
 
-    elif query.data.startswith("alert_"):
-        item_id = query.data.split("_")[1]
-        add_wishlist(user_id, item_id)
-        await query.answer("🔔 Alerte activée pour le restock !", show_alert=True)
+    elif query.data == "toggle_vip_status":
+        new_status = toggle_vip(user_id)
+        status_text = "inscrit aux" if new_status else "désinscrit des"
+        await query.answer(f"✅ Tu es désormais {status_text} VIP Drops !", show_alert=True)
+        await query.edit_message_text("Menu Principal :", reply_markup=get_main_keyboard(user_id))
 
-    elif query.data.startswith("size_"):
-        size = query.data.split("_")[1]
-        text = f"🔎 Articles en taille {size} :\n\n"
-        kb_rows = []
-        found = False
-        for item_id, data in catalog.items():
-            if data["taille"] == size and data["available"] and item_id not in reservations:
-                kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} - {data['name']} ({data['prix']}€)", callback_data=f"addcart_{item_id}")])
-                found = True
-        if not found:
-            text += "Aucun article dispo pour cette taille."
-            kb_rows.append([InlineKeyboardButton("🔙 Retour", callback_data="filter_size")])
-        else:
-            text += "Clique pour ajouter :"
-            kb_rows.append([InlineKeyboardButton("🛒 Voir mon panier", callback_data="show_cart")])
-            kb_rows.append([InlineKeyboardButton("🔙 Retour", callback_data="filter_size")])
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
-
-    elif query.data == "show_points":
-        pts = u_data["points"]
-        text = f"⭐ TES POINTS : {pts} pts\n• 1 € = 1 point.\n• Atteins 350 pts pour -10 € !"
-        await query.edit_message_text(text=text, reply_markup=get_main_keyboard(user_id))
+    elif query.data.startswith("take_"):
+        target_id = int(query.data.split("_")[1])
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"🛠️ Pris en charge par {admin_name}", callback_data="noop")]
+        ]))
+        await context.bot.send_message(
+            chat_id=target_id,
+            text=f"👨‍💻 Un vendeur ({admin_name}) s'occupe de ta commande et de la vérification de ton paiement !"
+        )
 
     elif query.data.startswith("confirm_pay_"):
         parts = query.data.split("_")
         target_id = int(parts[2])
-        price = float(parts[3]) if len(parts) > 3 else 0
+        total_price = float(parts[3])
 
-        add_points(target_id, int(price))
-        
-        target_u_data = get_user(target_id)
-        if target_u_data["discount_coupon"] > 0:
-            use_coupon(target_id)
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE orders SET status = 'Payé' WHERE user_id = ? AND status = 'En attente de paiement'", (target_id,))
+        cursor.execute("UPDATE stats SET total_sales = total_sales + 1, revenue = revenue + ? WHERE id = 1", (total_price,))
+        conn.commit()
+        conn.close()
 
+        add_points(target_id, int(total_price))
         referrer_id = give_referral_reward(target_id)
         if referrer_id:
             try:
                 await context.bot.send_message(
                     chat_id=referrer_id,
-                    text="🎉 Un filleul a validé son achat ! Tu gagnes un **bon de réduction de -5 €** !"
+                    text="🎉 Un de tes filleuls a validé un achat ! Tu as gagné un bon de réduction de **-5 €** !"
                 )
             except Exception:
                 pass
 
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"✅ Validé par {admin_name}", callback_data="noop")]
+        ]))
+        
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
-        
-        cursor.execute("SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_id,))
-        ord_res = cursor.fetchone()
-        order_id = ord_res[0] if ord_res else 0
-        items_summary = ord_res[1] if ord_res else "Articles divers"
-        del_mode = ord_res[3] if ord_res else "Colissimo"
-
-        cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (order_id,))
-
-        for item_id, res_data in list(reservations.items()):
-            if res_data["user_id"] == target_id:
-                cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
-                del reservations[item_id]
-
-        cursor.execute("UPDATE stats SET total_sales = total_sales + 1, revenue = revenue + ? WHERE id = 1", (price,))
-        conn.commit()
+        cursor.execute("SELECT order_id, items_str, delivery_mode FROM orders WHERE user_id = ? ORDER BY order_id DESC LIMIT 1", (target_id,))
+        ord_info = cursor.fetchone()
         conn.close()
 
-        pdf_buffer = generate_invoice_pdf(target_id, order_id, items_summary, price, del_mode)
+        if ord_info:
+            order_id, items_str, delivery_mode = ord_info
+            try:
+                pdf_buffer = generate_invoice_pdf(target_id, order_id, items_str, total_price, delivery_mode)
+                await context.bot.send_document(
+                    chat_id=target_id,
+                    document=pdf_buffer,
+                    filename=f"Facture_{order_id}.pdf"
+                )
+            except Exception:
+                pass
 
         await context.bot.send_message(
             chat_id=target_id,
-            text=f"✅ Ton paiement de {int(price)} € a été validé ! +{int(price)} pts fidélité. Voici ta facture officielle ci-dessous 👇"
+            text="✅ **Paiement validé avec succès !** Ta commande est en cours de préparation. Merci pour ton achat 🙏"
         )
-        await context.bot.send_document(
-            chat_id=target_id,
-            document=pdf_buffer,
-            filename=f"Facture_IDF_Running_Shop_{order_id}.pdf"
-        )
-
-        new_text = query.message.caption if query.message.caption else query.message.text
-        new_text += f"\n\n✅ PAIEMENT VALIDÉ PAR {admin_name}"
-        if query.message.caption:
-            await query.edit_message_caption(caption=new_text, reply_markup=None)
-        else:
-            await query.edit_message_text(text=new_text, reply_markup=None)
 
     elif query.data.startswith("refuse_pay_"):
-        parts = query.data.split("_")
-        target_id = int(parts[2])
-
+        target_id = int(query.data.split("_")[2])
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
-        for item_id, res_data in list(reservations.items()):
-            if res_data["user_id"] == target_id:
-                cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
-                del reservations[item_id]
-        cursor.execute("UPDATE orders SET status = 'Annulé' WHERE user_id = ? AND status = 'En attente de paiement'", (target_id,))
+        cursor.execute("SELECT order_id FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_id,))
+        res_ord = cursor.fetchone()
+        if res_ord:
+            cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ?", (res_ord[0],))
         conn.commit()
         conn.close()
 
+        for item_id, res in list(reservations.items()):
+            if res["user_id"] == target_id:
+                del reservations[item_id]
+                conn = sqlite3.connect("shop.db")
+                cursor = conn.cursor()
+                cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
+                conn.commit()
+                conn.close()
+
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"❌ Refusé par {admin_name}", callback_data="noop")]
+        ]))
         await context.bot.send_message(
             chat_id=target_id,
-            text="❌ Ton reçu de paiement a été refusé. Contacte @idf_runningshop si besoin."
+            text="❌ Malheureusement, ton reçu de paiement n'a pas pu être validé. Contacte le support pour plus d'informations."
         )
-        new_text = query.message.caption if query.message.caption else query.message.text
-        new_text += f"\n\n❌ PAIEMENT REFUSÉ PAR {admin_name}"
-        if query.message.caption:
-            await query.edit_message_caption(caption=new_text, reply_markup=None)
-        else:
-            await query.edit_message_text(text=new_text, reply_markup=None)
 
-def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-
-    # En-tête - Nom de la boutique & infos
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, height - 45, "SHVPPEUR CORP")
-    
-    c.setFont("Helvetica", 9)
-    c.drawString(50, height - 60, "IDF Running Shop - Vêtements Streetwear & Running Second-Main")
-    c.drawString(50, height - 73, "Telegram: @idf_runningshop | TikTok: @idf_runningshop | Snapchat: @BW0Gzw9i")
-
-    # Bloc Facture & Infos client (style pro)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(380, height - 45, f"FACTURE #{order_id}")
-    c.setFont("Helvetica", 9)
-    c.drawString(380, height - 60, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    c.drawString(380, height - 73, f"Client ID : {user_id}")
-    
-    # Encadré Facturé à
-    c.setStrokeColorRGB(0.7, 0.7, 0.7)
-    c.rect(370, height - 135, 180, 50, stroke=1, fill=0)
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(380, height - 100, "Facturé à :")
-    c.setFont("Helvetica", 9)
-    c.drawString(380, height - 115, f"Client Telegram ID : {user_id}")
-    c.drawString(380, height - 127, "France")
-
-    # Ligne de séparation
-    c.line(50, height - 150, width - 50, height - 150)
-
-    # En-têtes du tableau
-    c.setFillColorRGB(0.9, 0.9, 0.9)
-    c.rect(50, height - 180, width - 100, 20, stroke=0, fill=1)
-    c.setFillColorRGB(0, 0, 0)
-    
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(60, height - 173, "Description des articles")
-    c.drawString(340, height - 173, "Quantité")
-    c.drawString(420, height - 173, "Livraison")
-    c.drawString(490, height - 173, "Total TTC")
-
-    # Ligne d'article
-    c.setFont("Helvetica", 9)
-    c.drawString(60, height - 205, items_desc[:55])
-    c.drawString(350, height - 205, "1.00")
-    c.drawString(415, height - 205, delivery_mode[:15])
-    c.drawString(490, height - 205, f"{amount} €")
-
-    c.setStrokeColorRGB(0.8, 0.8, 0.8)
-    c.line(50, height - 220, width - 50, height - 220)
-
-    # Bloc Totaux (en bas à droite)
-    c.rect(370, height - 290, 180, 55, stroke=1, fill=0)
-    c.drawString(380, height - 255, "Total Hors TVA :")
-    c.drawRightString(540, height - 255, f"{amount} €")
-    
-    c.drawString(380, height - 270, "TVA (0% - Franchise) :")
-    c.drawRightString(540, height - 270, "0.00 €")
-    
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(380, height - 285, "MONTANT TOTAL :")
-    c.drawRightString(540, height - 285, f"{amount} €")
-
-    # Pied de page
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawString(50, 50, "Merci pour votre achat chez Shvppeur Corp / IDF Running Shop !")
-    c.drawString(50, 38, "Retrouvez tous nos drops sur Telegram et Snapchat.")
-
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-    return buffer
+    elif query.data == "noop":
+        pass
 
 async def refresh_cart_display(query, user_id, u_data, catalog):
     cart_items = get_cart(user_id)
-    text = "🛒 **TON PANIER ACTUEL** :\n\n"
-    total = 0
-    for item_id in cart_items:
-        item = catalog[item_id]
-        text += f"• #{item_id} - {item['name']} : **{item['prix']} €**\n"
-        total += item['prix']
-    
-    current_delivery = delivery_choices.get(user_id, "colissimo")
-    if current_delivery == "click_collect":
-        shipping = 0
-        delivery_text = "🤝 Click & Collect (Gratuit)"
+    if not cart_items:
+        text = "🛒 Ton panier est vide."
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📦 Voir le catalogue", callback_data="show_catalog")]])
     else:
-        shipping = 6 if total < 170 else 0
-        delivery_text = f"🚚 Colissimo ({shipping} €)"
+        current_delivery = delivery_choices.get(user_id, "colissimo")
+        text = "🛒 **TON PANIER ACTUEL** :\n\n"
+        total = 0
+        for item_id in cart_items:
+            item = catalog[item_id]
+            text += f"• #{item_id} - {item['name']} : **{item['prix']} €**\n"
+            total += item['prix']
+        
+        if current_delivery == "click_collect":
+            shipping = 0
+            delivery_text = "🤝 Click & Collect (Main propre IDF - Gratuit)"
+        else:
+            shipping = 6 if total < 170 else 0
+            delivery_text = f"🚚 Colissimo ({shipping} € {'OFFERT 🎉' if shipping == 0 else ''})"
 
-    final_total = total + shipping
-    if u_data["discount_coupon"] > 0:
-        final_total = max(0, final_total - 5)
-        text += f"\n🎟️ **Bon de parrainage (-5 €) appliqué !**\n"
+        final_total = total + shipping
+        if u_data["discount_coupon"] > 0:
+            final_total = max(0, final_total - 5)
+            text += f"\n🎟️ **Bon de parrainage (-5 €) appliqué !**\n"
 
-    text += f"\n• Sous-total : {total} €\n"
-    text += f"• Mode : {delivery_text}\n"
-    text += f"💰 **TOTAL GLOBAL : {final_total} €**"
+        text += f"\n• Sous-total : {total} €\n"
+        text += f"• Mode : {delivery_text}\n"
+        text += f"💰 **TOTAL GLOBAL : {final_total} €**"
 
-    cc_check = "✅ " if current_delivery == "click_collect" else ""
-    col_check = "✅ " if current_delivery == "colissimo" else ""
+        cc_check = "✅ " if current_delivery == "click_collect" else ""
+        col_check = "✅ " if current_delivery == "colissimo" else ""
 
-    kb_buttons = [
-        [InlineKeyboardButton(f"{col_check}🚚 Colissimo (+6€)", callback_data="set_del_colissimo"),
-         InlineKeyboardButton(f"{cc_check}🤝 Click & Collect", callback_data="set_del_cc")],
-        [InlineKeyboardButton("✅ Valider et Payer (Bloquer 5 min)", callback_data="checkout_cart")],
-        [InlineKeyboardButton("🗑️ Vider le panier", callback_data="clear_cart")],
-        [InlineKeyboardButton("📦 Continuer mes achats", callback_data="show_catalog")]
-    ]
-    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_buttons), parse_mode="Markdown")
+        kb_buttons = [
+            [InlineKeyboardButton(f"{col_check}🚚 Colissimo (+6€)", callback_data="set_del_colissimo"),
+             InlineKeyboardButton(f"{cc_check}🤝 Click & Collect", callback_data="set_del_cc")],
+            [InlineKeyboardButton("✅ Valider et Payer (Bloquer 5 min)", callback_data="checkout_cart")],
+            [InlineKeyboardButton("🗑️ Vider le panier", callback_data="clear_cart")],
+            [InlineKeyboardButton("📦 Continuer mes achats", callback_data="show_catalog")]
+        ]
+        kb = InlineKeyboardMarkup(kb_buttons)
+    await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
+
+def generate_invoice_pdf(user_id, order_id, items_str, total_price, delivery_mode):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    p.drawString(50, height - 50, "IDF RUNNING SHOP - FACTURE")
+    p.drawString(50, height - 70, f"Facture N° : {order_id}")
+    p.drawString(50, height - 90, f"Client ID : {user_id}")
+    p.drawString(50, height - 110, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    p.drawString(50, height - 130, f"Mode de livraison : {delivery_mode}")
+
+    p.drawString(50, height - 170, f"Articles : {items_str}")
+    p.drawString(50, height - 200, f"Total Payé : {total_price} €")
+
+    p.drawString(50, height - 260, "Merci pour votre achat chez IDF Running Shop !")
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
 
 def main():
+    if not TELEGRAM_TOKEN:
+        print("❌ Erreur : TELEGRAM_TOKEN non défini !")
+        return
+
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    
-    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.job_queue.run_repeating(check_reservations_job, interval=10, first=10)
 
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("vendu", admin_vendu))
     application.add_handler(CommandHandler("resto", admin_resto))
     application.add_handler(CommandHandler("ban", admin_ban))
@@ -1069,8 +1010,11 @@ def main():
     application.add_handler(CommandHandler("points", admin_points))
     application.add_handler(CommandHandler("facture", admin_facture))
 
-    application.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
+    application.add_handler(CallbackQueryHandler(handle_callback))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    print("🤖 Bot démarré avec succès...")
     application.run_polling()
 
 if __name__ == "__main__":
