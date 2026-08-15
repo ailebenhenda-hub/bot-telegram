@@ -50,7 +50,7 @@
             font-weight: 600;
         }
 
-        .announcement-banner, .banner {
+        .announcement-banner {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 14px;
@@ -471,7 +471,7 @@
                         'apikey': SUPABASE_KEY,
                         'Authorization': `Bearer ${SUPABASE_KEY}`,
                         'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
+                        'Prefer': 'return=representation'
                     },
                     body: JSON.stringify(orderData)
                 });
@@ -483,9 +483,12 @@
                     closeCartModal();
                     fetchSoldItems();
                 } else {
-                    alert("Erreur lors de l'envoi de la commande.");
+                    let errorData = await response.json();
+                    console.error("Erreur Supabase :", errorData);
+                    alert("Erreur : " + (errorData.message || "Impossible d'envoyer la commande."));
                 }
             } catch (err) {
+                console.error("Erreur réseau :", err);
                 alert("Erreur de connexion.");
             }
         }
