@@ -216,9 +216,34 @@
         .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
         .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
 
-        .cart-items-list { overflow-y: auto; max-height: 30vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .cart-items-list { overflow-y: auto; max-height: 25vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
         .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
         .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
+
+        .shipping-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+        .shipping-section label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #d1d1d6;
+        }
+        .shipping-select {
+            width: 100%;
+            background: #1c1c1e;
+            border: 1px solid var(--card-border);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+        }
 
         .cart-summary { border-top: 1px solid var(--card-border); padding-top: 12px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
         .summary-row { display: flex; justify-content: space-between; }
@@ -260,18 +285,7 @@
 
     <div class="cart-modal" id="cartModal">
         <div class="cart-content" id="cartContentArea">
-            <div class="cart-header">
-                <h2>Mon Panier</h2>
-                <button class="close-cart" onclick="closeCartModal()">&times;</button>
-            </div>
-            <div class="cart-items-list" id="cartItemsList"></div>
-            <div class="cart-summary">
-                <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
-                <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
-                <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">10 €</span></div>
-                <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
-            </div>
-            <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
+            <!-- Injecté dynamiquement par openCartModal() -->
         </div>
     </div>
 
@@ -302,6 +316,7 @@
         let currentSize = 'ALL';
         let cart = [];
         let soldItems = [];
+        let selectedShippingMethod = 'colissimo'; // Valeur par défaut
 
         async function fetchSoldItems() {
             try {
@@ -417,15 +432,32 @@
                 let item = items.find(i => i.id === id);
                 if (item) subtotal += item.prix;
             });
+            
             let discount = 0;
             cart.forEach(id => {
                 let item = items.find(i => i.id === id);
                 if (item && item.prix >= 70) discount += 5;
             });
-            let shipping = (subtotal - discount >= 170) ? 0 : 10;
+
+            let shipping = 0;
+            if (selectedShippingMethod === 'colissimo') {
+                shipping = (subtotal - discount >= 170) ? 0 : 6;
+            } else if (selectedShippingMethod === 'gare_5') {
+                shipping = 5;
+            } else if (selectedShippingMethod === 'gare_10') {
+                shipping = 10;
+            } else if (selectedShippingMethod === 'gare_15') {
+                shipping = 15;
+            }
+
             let finalTotal = subtotal - discount + shipping;
             if (finalTotal < 0) finalTotal = 0;
             return { subtotal, discount, shipping, finalTotal };
+        }
+
+        function updateShippingChoice(selectEl) {
+            selectedShippingMethod = selectEl.value;
+            refreshCartSummary();
         }
 
         function openCartModal() {
@@ -436,10 +468,21 @@
                     <button class="close-cart" onclick="closeCartModal()">&times;</button>
                 </div>
                 <div class="cart-items-list" id="cartItemsList"></div>
+                
+                <div class="shipping-section">
+                    <label for="shippingSelect">📦 Mode de livraison :</label>
+                    <select id="shippingSelect" class="shipping-select" onchange="updateShippingChoice(this)">
+                        <option value="colissimo" ${selectedShippingMethod === 'colissimo' ? 'selected' : ''}>Colissimo (6€ - Gratuit dès 170€)</option>
+                        <option value="gare_5" ${selectedShippingMethod === 'gare_5' ? 'selected' : ''}>Mains propres - Gare IDF (Proche : 5€)</option>
+                        <option value="gare_10" ${selectedShippingMethod === 'gare_10' ? 'selected' : ''}>Mains propres - Gare IDF (Moyenne distance : 10€)</option>
+                        <option value="gare_15" ${selectedShippingMethod === 'gare_15' ? 'selected' : ''}>Mains propres - Gare IDF (Longue distance : 15€)</option>
+                    </select>
+                </div>
+
                 <div class="cart-summary">
                     <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
                     <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
-                    <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">10 €</span></div>
+                    <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">6 €</span></div>
                     <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
                 </div>
                 <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
@@ -461,12 +504,21 @@
                     listEl.appendChild(row);
                 }
             });
+            refreshCartSummary();
+            document.getElementById("cartModal").style.display = "flex";
+        }
+
+        function refreshCartSummary() {
             let calc = calculateTotals();
             document.getElementById("subtotalAmount").textContent = calc.subtotal + " €";
             document.getElementById("discountAmount").textContent = "-" + calc.discount + " €";
-            document.getElementById("shippingAmount").textContent = calc.shipping === 0 ? "Offert 🎉" : calc.shipping + " €";
+            
+            let shippingLabel = calc.shipping + " €";
+            if (selectedShippingMethod === 'colissimo' && calc.shipping === 0) {
+                shippingLabel = "Offert 🎉 (Dès 170€)";
+            }
+            document.getElementById("shippingAmount").textContent = shippingLabel;
             document.getElementById("finalTotalAmount").textContent = calc.finalTotal + " €";
-            document.getElementById("cartModal").style.display = "flex";
         }
 
         function closeCartModal() {
@@ -484,6 +536,11 @@
                 let itm = items.find(i => i.id === id);
                 return `#${id} ${itm ? itm.name : ''}`;
             }).join(', ');
+
+            let shippingTextLabel = "Colissimo";
+            if (selectedShippingMethod === 'gare_5') shippingTextLabel = "Mains propres (Proche - 5€)";
+            else if (selectedShippingMethod === 'gare_10') shippingTextLabel = "Mains propres (Moyenne - 10€)";
+            else if (selectedShippingMethod === 'gare_15') shippingTextLabel = "Mains propres (Loin - 15€)";
 
             const orderData = {
                 items: cart.join(', '),
@@ -509,7 +566,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             chat_id: ADMIN_GROUP_ID,
-                            text: `🚨 NOUVELLE COMMANDE (WEB APP)\n👤 Client : ${username}\n📦 Articles : ${itemsSummary}\n💰 Montant : ${calc.finalTotal} €`,
+                            text: `🚨 NOUVELLE COMMANDE (WEB APP)\n👤 Client : ${username}\n📦 Articles : ${itemsSummary}\n🚚 Livraison : ${shippingTextLabel}\n💰 Montant : ${calc.finalTotal} €`,
                             parse_mode: "Markdown"
                         })
                     });
