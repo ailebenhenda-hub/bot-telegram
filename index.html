@@ -282,6 +282,11 @@
         const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
         const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK";
 
+        // Configuration pour les notifications directes dans le groupe admin
+        const BOT_TOKEN = "8537469629:AAHqv5VPN1Qm6zJMiiHIHlSSY-eNPQOEX3bo";
+        const ADMIN_GROUP_ID = "-1003956183527";
+        const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
+
         const items = [
             { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
             { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
@@ -457,7 +462,15 @@
         async function sendOrderToBot() {
             if (cart.length === 0) return;
 
-            const username = tg.initDataUnsafe?.user?.username || tg.initDataUnsafe?.user?.first_name || "Client Telegram";
+            const user = tg.initDataUnsafe?.user;
+            const username = user?.username ? `@${user.username}` : (user?.first_name || "Client WebApp");
+            const calc = calculateTotals();
+            
+            let itemsSummary = cart.map(id => {
+                let itm = items.find(i => i.id === id);
+                return `#${id} ${itm ? itm.name : ''}`;
+            }).join(', ');
+
             const orderData = {
                 items: cart.join(', '),
                 username: username,
@@ -465,6 +478,7 @@
             };
 
             try {
+                // 1. Enregistrement dans Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -477,7 +491,23 @@
                 });
 
                 if (response.ok) {
-                    alert("✨ Commande validée avec succès !");
+                    // 2. Notification automatique envoyée au groupe Admin (Type Shopify)
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: ADMIN_GROUP_ID,
+                            text: `🚨 NOUVELLE COMMANDE (WEB APP)\n👤 Client : ${username}\n📦 Articles : ${itemsSummary}\n💰 Montant : ${calc.finalTotal} €`,
+                            parse_mode: "Markdown"
+                        })
+                    });
+
+                    alert("✨ Commande validée ! Redirection vers le paiement Revolut...");
+                    
+                    // 3. Redirection automatique vers le lien Revolut avec le montant exact
+                    const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
+                    window.open(revolutUrl, '_blank');
+
                     cart = [];
                     updateCartUI();
                     closeCartModal();
