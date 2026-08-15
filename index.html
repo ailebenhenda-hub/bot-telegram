@@ -13,48 +13,264 @@
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
             --success: #34c759;
+            --danger: #ff453a;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 14px; padding-bottom: 120px; }
-        header { text-align: center; margin-bottom: 15px; padding-top: 10px; }
-        h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px 0; background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .subtitle { color: var(--secondary-text); font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
-        .search-box { width: 100%; padding: 13px 16px; background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; color: white; font-size: 14px; margin-bottom: 12px; box-sizing: border-box; outline: none; }
-        .filter-chips { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 4px; }
-        .chip { background-color: var(--card-bg); border: 1px solid var(--card-border); color: var(--secondary-text); padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .chip.active { background-color: #ffffff; color: #000000; }
-        .item-card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .item-card h3 { font-size: 14px; margin: 0 0 6px 0; }
-        .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--secondary-text); }
-        .item-price { font-weight: 900; font-size: 16px; margin-top: 8px; }
-        .add-btn { background-color: #ffffff; color: #000000; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 12px; cursor: pointer; }
-        .footer-cart { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(8, 8, 8, 0.9); backdrop-filter: blur(20px); border-top: 1px solid var(--card-border); padding: 14px 16px; z-index: 100; display: none; }
-        .checkout-btn { background-color: #ffffff; color: #000000; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; }
-        .cart-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: none; flex-direction: column; justify-content: flex-end; }
-        .cart-content { background: #141416; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 24px 20px; max-height: 80vh; overflow-y: auto; }
-        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; margin-bottom: 8px; }
-        .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; margin-top: 20px; cursor: pointer; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 14px;
+            padding-bottom: 120px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding-top: 10px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 900;
+            margin: 0 0 4px 0;
+            letter-spacing: 0.5px;
+            background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--secondary-text);
+            font-size: 11px;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+        }
+
+        .announcement-banner, .banner {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 15px;
+            color: #d1d1d6;
+            line-height: 1.4;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 13px 16px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+        }
+
+        .filter-chips::-webkit-scrollbar { display: none; }
+
+        .chip {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--secondary-text);
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .chip.active {
+            background-color: #ffffff;
+            color: #000000;
+            border-color: #ffffff;
+        }
+
+        .catalog-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .item-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .item-info { flex-grow: 1; padding-right: 12px; }
+        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; }
+        
+        .item-meta {
+            display: flex;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--secondary-text);
+            margin-bottom: 8px;
+        }
+
+        .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; color: #d1d1d6; }
+        .item-price { font-weight: 900; font-size: 16px; color: #ffffff; }
+
+        @keyframes popClick {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        .add-btn {
+            background-color: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+
+        .add-btn.pop-anim { animation: popClick 0.3s ease-in-out; }
+        .add-btn.added { background-color: var(--success); color: #ffffff; }
+        
+        .add-btn.sold-out {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--secondary-text);
+            cursor: not-allowed;
+        }
+
+        .footer-cart {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background-color: rgba(8, 8, 8, 0.9);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--card-border);
+            padding: 14px 16px;
+            z-index: 100;
+            display: none;
+        }
+
+        .checkout-btn {
+            background-color: #ffffff;
+            color: #000000;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cart-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .cart-content {
+            background-color: #141416;
+            border-top: 1px solid var(--card-border);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 20px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
+        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+
+        .cart-items-list { overflow-y: auto; max-height: 35vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+        .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
+
+        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 12px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
+        .summary-row { display: flex; justify-content: space-between; }
+        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
+
+        .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; }
+        .no-result { text-align: center; color: var(--secondary-text); font-size: 13px; padding: 20px; }
     </style>
 </head>
 <body>
-    <header><h1>IDF RUNNING SHOP</h1><p class="subtitle">Gestion des stocks en temps réel</p></header>
-    <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher..." oninput="renderCatalog()">
+
+    <header>
+        <h1>IDF RUNNING SHOP</h1>
+        <p class="subtitle">Streetwear & Vêtements Running</p>
+    </header>
+
+    <div class="announcement-banner">
+        📢 <strong>Annonce :</strong> Articles uniques (1 seul exemplaire par modèle) !
+    </div>
+
+    <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article..." oninput="filterCatalog()">
+
     <div class="filter-chips">
         <div class="chip active" onclick="setFilter('ALL', this)">Tout</div>
-        <div class="chip" onclick="setFilter('S', this)">S</div>
-        <div class="chip" onclick="setFilter('M', this)">M</div>
-        <div class="chip" onclick="setFilter('L', this)">L</div>
+        <div class="chip" onclick="setFilter('S', this)">Taille S</div>
+        <div class="chip" onclick="setFilter('M', this)">Taille M</div>
+        <div class="chip" onclick="setFilter('L', this)">Taille L</div>
+        <div class="chip" onclick="setFilter('XL', this)">Taille XL</div>
     </div>
-    <div id="catalog-container"></div>
+
+    <div class="catalog-grid" id="catalog-container"></div>
+
     <div class="footer-cart" id="footer-cart-bar">
         <button class="checkout-btn" onclick="openCartModal()">
-            <span id="cart-count-label">🛒 Panier</span>
-            <span id="cart-total-preview">0 €</span>
+            <span id="cart-count-label">🛒 0 article(s)</span>
+            <span id="cart-total-preview">0 € &rarr; Voir le panier</span>
         </button>
     </div>
+
     <div class="cart-modal" id="cartModal">
         <div class="cart-content">
-            <div style="display:flex; justify-content:space-between;"><h2>Mon Panier</h2><button onclick="closeCartModal()" style="background:none;border:none;color:white;font-size:20px;">✕</button></div>
-            <div id="cartItemsList"></div>
+            <div class="cart-header">
+                <h2>Mon Panier</h2>
+                <button class="close-cart" onclick="closeCartModal()">&times;</button>
+            </div>
+            <div class="cart-items-list" id="cartItemsList"></div>
+            <div class="cart-summary">
+                <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
+                <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
+                <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">10 €</span></div>
+                <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
+            </div>
             <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
         </div>
     </div>
@@ -63,88 +279,219 @@
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        let products = [
-            { id: 1, name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, stock: 1 },
-            { id: 2, name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, stock: 1 },
-            { id: 3, name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, stock: 1 },
-            { id: 4, name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, stock: 1 },
-            { id: 5, name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, stock: 1 },
-            { id: 6, name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, stock: 1 },
-            { id: 7, name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, stock: 1 },
-            { id: 8, name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, stock: 1 },
-            { id: 9, name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, stock: 1 },
-            { id: 10, name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, stock: 1 }
+        const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DakG_o6bZnO";
+
+        const items = [
+            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
+            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
+            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90 },
+            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "S", etat: "Excellent", prix: 90 },
+            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 },
+            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35 },
+            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30 },
+            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70 },
+            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80 }
         ];
 
-        let cart = {};
         let currentSize = 'ALL';
+        let cart = [];
+        let soldItems = [];
 
-        function renderCatalog() {
+        async function fetchSoldItems() {
+            try {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes?select=items`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                if (response.ok) {
+                    let data = await response.json();
+                    soldItems = [];
+                    data.forEach(row => {
+                        if (row.items) {
+                            row.items.split(',').forEach(id => soldItems.push(id.trim()));
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Erreur chargement stock", e);
+            }
+            renderCatalog();
+        }
+
+        function renderCatalog(filterText = '') {
             const container = document.getElementById("catalog-container");
-            const query = document.getElementById("search-input").value.toLowerCase();
             container.innerHTML = "";
-            
-            let filtered = products.filter(p => (currentSize === 'ALL' || p.taille === currentSize) && p.name.toLowerCase().includes(query));
-            
+
+            const filtered = items.filter(item => {
+                const matchesSize = currentSize === 'ALL' || item.taille === currentSize;
+                const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || item.id.includes(filterText);
+                return matchesSize && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="no-result">Aucun article trouvé 😕</div>`;
+                return;
+            }
+
             filtered.forEach(item => {
-                container.innerHTML += `
-                    <div class="item-card">
-                        <div>
-                            <h3>#${item.id} - ${item.name}</h3>
-                            <span class="badge">${item.taille}</span> <span class="badge">${item.etat}</span> <span class="badge">Stock: ${item.stock}</span>
-                            <div class="item-price">${item.prix} €</div>
+                const isSoldOut = soldItems.includes(item.id);
+                const card = document.createElement("div");
+                card.className = "item-card";
+                card.innerHTML = `
+                    <div class="item-info">
+                        <h3>#${item.id} - ${item.name}</h3>
+                        <div class="item-meta">
+                            <span class="badge">Taille ${item.taille}</span>
+                            <span class="badge">${item.etat}</span>
                         </div>
-                        <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
-                    </div>`;
+                        <div class="item-price">${item.prix} €</div>
+                    </div>
+                    ${isSoldOut 
+                        ? `<button class="add-btn sold-out" disabled>Épuisé</button>` 
+                        : `<button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>`
+                    }
+                `;
+                container.appendChild(card);
             });
         }
 
-        function setFilter(size, el) { 
-            currentSize = size; 
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); 
-            el.classList.add('active'); 
-            renderCatalog(); 
+        function setFilter(size, element) {
+            currentSize = size;
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+            renderCatalog(document.getElementById('search-input').value);
         }
 
-        function addToCart(id) { 
-            cart[id] = (cart[id] || 0) + 1; 
-            updateCartUI(); 
+        function filterCatalog() {
+            renderCatalog(document.getElementById('search-input').value);
+        }
+
+        function addToCart(itemId, btn) {
+            // Empêche d'ajouter deux fois le même article unique dans le panier
+            if (cart.includes(itemId)) {
+                alert("Cet article est déjà dans ton panier !");
+                return;
+            }
+
+            cart.push(itemId);
+            updateCartUI();
+
+            btn.classList.add("pop-anim");
+            btn.textContent = "✓ Ajouté";
+            btn.classList.add("added");
+
+            setTimeout(() => { btn.classList.remove("pop-anim"); }, 300);
+            setTimeout(() => { btn.textContent = "Ajouter"; btn.classList.remove("added"); }, 1000);
+
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+            if (cart.length === 0) closeCartModal();
+            else openCartModal();
         }
 
         function updateCartUI() {
-            let total = Object.values(cart).reduce((a, b) => a + b, 0);
-            let totalPrice = Object.keys(cart).reduce((sum, id) => {
-                let p = products.find(x => String(x.id) === String(id));
-                return sum + (p.prix * cart[id]);
-            }, 0);
+            const footerBar = document.getElementById("footer-cart-bar");
+            if (cart.length > 0) {
+                footerBar.style.display = "block";
+                document.getElementById("cart-count-label").textContent = `🛒 ${cart.length} article(s)`;
+                let calc = calculateTotals();
+                document.getElementById("cart-total-preview").textContent = `${calc.finalTotal} € ➔ Panier`;
+            } else {
+                footerBar.style.display = "none";
+            }
+        }
 
-            document.getElementById("footer-cart-bar").style.display = total > 0 ? "block" : "none";
-            document.getElementById("cart-count-label").textContent = `🛒 ${total} article(s)`;
-            document.getElementById("cart-total-preview").textContent = `${totalPrice} €`;
+        function calculateTotals() {
+            let subtotal = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item) subtotal += item.prix;
+            });
+            let discount = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item && item.prix >= 70) discount += 5;
+            });
+            let shipping = (subtotal - discount >= 170) ? 0 : 10;
+            let finalTotal = subtotal - discount + shipping;
+            if (finalTotal < 0) finalTotal = 0;
+            return { subtotal, discount, shipping, finalTotal };
         }
 
         function openCartModal() {
-            const list = document.getElementById("cartItemsList"); 
-            list.innerHTML = "";
-            for (let id in cart) {
-                let p = products.find(x => String(x.id) === String(id));
-                list.innerHTML += `<div class="cart-item-row"><span>${cart[id]}x ${p.name}</span><strong>${p.prix * cart[id]} €</strong></div>`;
-            }
+            const listEl = document.getElementById("cartItemsList");
+            listEl.innerHTML = "";
+            cart.forEach((id, index) => {
+                let item = items.find(i => i.id === id);
+                if (item) {
+                    const row = document.createElement("div");
+                    row.className = "cart-item-row";
+                    row.innerHTML = `
+                        <span>#${item.id} - ${item.name} (${item.taille})</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <strong>${item.prix} €</strong>
+                            <button class="remove-item" onclick="removeFromCart(${index})">&times;</button>
+                        </div>
+                    `;
+                    listEl.appendChild(row);
+                }
+            });
+            let calc = calculateTotals();
+            document.getElementById("subtotalAmount").textContent = calc.subtotal + " €";
+            document.getElementById("discountAmount").textContent = "-" + calc.discount + " €";
+            document.getElementById("shippingAmount").textContent = calc.shipping === 0 ? "Offert 🎉" : calc.shipping + " €";
+            document.getElementById("finalTotalAmount").textContent = calc.finalTotal + " €";
             document.getElementById("cartModal").style.display = "flex";
         }
 
-        function closeCartModal() { 
-            document.getElementById("cartModal").style.display = "none"; 
+        function closeCartModal() {
+            document.getElementById("cartModal").style.display = "none";
         }
 
-        function sendOrderToBot() {
-            alert("Commande validée avec succès !"); 
-            cart = {}; 
-            updateCartUI(); 
-            closeCartModal();
+        async function sendOrderToBot() {
+            if (cart.length === 0) return;
+
+            const username = tg.initDataUnsafe?.user?.username || tg.initDataUnsafe?.user?.first_name || "Client Telegram";
+            const orderData = {
+                items: cart.join(', '),
+                username: username,
+                statut: "nouveau"
+            };
+
+            try {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (response.ok) {
+                    alert("✨ Commande validée avec succès !");
+                    cart = [];
+                    updateCartUI();
+                    closeCartModal();
+                    fetchSoldItems();
+                } else {
+                    alert("Erreur lors de l'envoi de la commande.");
+                }
+            } catch (err) {
+                alert("Erreur de connexion.");
+            }
         }
 
-        renderCatalog();
+        fetchSoldItems();
     </script>
 </body>
 </html>
