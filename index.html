@@ -12,8 +12,8 @@
             --card-border: rgba(255, 255, 255, 0.08);
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
-            --accent: #ffffff;
             --success: #34c759;
+            --danger: #ff453a;
         }
 
         body {
@@ -50,22 +50,9 @@
             font-weight: 600;
         }
 
-        .announcement-banner {
-            background: linear-gradient(135deg, #18181a, #111113);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 14px;
-            padding: 14px;
-            text-align: center;
-            margin-bottom: 15px;
-            font-size: 13px;
-            color: #f0f0f0;
-            line-height: 1.4;
-        }
-
-        .banner {
+        .announcement-banner, .banner {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            backdrop-filter: blur(10px);
             border-radius: 14px;
             padding: 14px;
             text-align: center;
@@ -97,9 +84,7 @@
             scrollbar-width: none;
         }
 
-        .filter-chips::-webkit-scrollbar {
-            display: none;
-        }
+        .filter-chips::-webkit-scrollbar { display: none; }
 
         .chip {
             background-color: var(--card-bg);
@@ -129,7 +114,6 @@
         .item-card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
-            backdrop-filter: blur(12px);
             border-radius: 16px;
             padding: 16px;
             display: flex;
@@ -138,18 +122,9 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
-        .item-info {
-            flex-grow: 1;
-            padding-right: 12px;
-        }
-
-        .item-info h3 {
-            font-size: 14px;
-            font-weight: 700;
-            margin: 0 0 6px 0;
-            color: #ffffff;
-        }
-
+        .item-info { flex-grow: 1; padding-right: 12px; }
+        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; }
+        
         .item-meta {
             display: flex;
             gap: 6px;
@@ -158,18 +133,8 @@
             margin-bottom: 8px;
         }
 
-        .badge {
-            background: rgba(255,255,255,0.06);
-            padding: 2px 8px;
-            border-radius: 6px;
-            color: #d1d1d6;
-        }
-
-        .item-price {
-            font-weight: 900;
-            font-size: 16px;
-            color: #ffffff;
-        }
+        .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; color: #d1d1d6; }
+        .item-price { font-weight: 900; font-size: 16px; color: #ffffff; }
 
         @keyframes popClick {
             0% { transform: scale(1); }
@@ -190,63 +155,18 @@
             white-space: nowrap;
         }
 
-        .add-btn.pop-anim {
-            animation: popClick 0.3s ease-in-out;
-        }
-
-        .add-btn.added {
-            background-color: #34c759;
-            color: #ffffff;
-        }
-
-        .section-title {
-            font-size: 14px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 25px 0 10px 0;
+        .add-btn.pop-anim { animation: popClick 0.3s ease-in-out; }
+        .add-btn.added { background-color: var(--success); color: #ffffff; }
+        
+        .add-btn.sold-out {
+            background-color: rgba(255,255,255,0.05);
             color: var(--secondary-text);
-        }
-
-        .reviews-box {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 14px;
-            font-size: 12px;
-            color: #d1d1d6;
-            margin-bottom: 20px;
-            line-height: 1.4;
-        }
-
-        .social-container {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 25px;
-        }
-
-        .social-btn {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            color: white;
-            text-decoration: none;
-            text-align: center;
-            padding: 12px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 700;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
+            cursor: not-allowed;
         }
 
         .footer-cart {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             background-color: rgba(8, 8, 8, 0.9);
             backdrop-filter: blur(20px);
             border-top: 1px solid var(--card-border);
@@ -268,15 +188,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 20px rgba(255,255,255,0.12);
         }
 
         .cart-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(15px);
             z-index: 1000;
@@ -296,102 +212,20 @@
             flex-direction: column;
         }
 
-        .cart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
+        .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
+        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
 
-        .cart-header h2 {
-            font-size: 18px;
-            font-weight: 800;
-            margin: 0;
-        }
+        .cart-items-list { overflow-y: auto; max-height: 35vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+        .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
 
-        .close-cart {
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            font-size: 16px;
-            cursor: pointer;
-        }
+        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 12px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
+        .summary-row { display: flex; justify-content: space-between; }
+        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
 
-        .cart-items-list {
-            overflow-y: auto;
-            max-height: 35vh;
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .cart-item-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255,255,255,0.03);
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-        }
-
-        .remove-item {
-            color: #ff453a;
-            background: none;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .cart-summary {
-            border-top: 1px solid var(--card-border);
-            padding-top: 12px;
-            margin-bottom: 16px;
-            font-size: 13px;
-            color: var(--secondary-text);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .summary-row {
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .summary-row.total {
-            color: white;
-            font-weight: 900;
-            font-size: 16px;
-            margin-top: 6px;
-            border-top: 1px dashed rgba(255,255,255,0.1);
-            padding-top: 8px;
-        }
-
-        .validate-order-btn {
-            background-color: #34c759;
-            color: white;
-            border: none;
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            font-weight: 800;
-            font-size: 15px;
-            cursor: pointer;
-            text-align: center;
-        }
-
-        .no-result {
-            text-align: center;
-            color: var(--secondary-text);
-            font-size: 13px;
-            padding: 20px;
-        }
+        .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; }
+        .no-result { text-align: center; color: var(--secondary-text); font-size: 13px; padding: 20px; }
     </style>
 </head>
 <body>
@@ -402,11 +236,7 @@
     </header>
 
     <div class="announcement-banner">
-        📢 <strong>Annonce :</strong> Prochain gros drop prévu ce week-end ! Restez connectés sur le canal.
-    </div>
-
-    <div class="banner">
-        🔥 <strong>Port offert</strong> dès 170 € d'achat !<br>Remise de <strong>-5€</strong> par article supp. dès 70€.
+        📢 <strong>Annonce :</strong> Articles uniques (1 seul exemplaire par modèle) !
     </div>
 
     <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article..." oninput="filterCatalog()">
@@ -421,25 +251,6 @@
 
     <div class="catalog-grid" id="catalog-container"></div>
 
-    <div class="section-title">⭐ Ce que pensent nos clients</div>
-    <div class="reviews-box">
-        "Colis reçu en 48h en Île-de-France, état irréprochable comme décrit. Au top !" <br>
-        <span style="color: var(--secondary-text); font-size: 11px;">— Thomas M. (Canal Telegram)</span>
-    </div>
-
-    <div class="section-title">📱 Retrouve-nous ici</div>
-    <div class="social-container">
-        <a href="https://snapchat.com/t/BW0Gzw9i" target="_blank" class="social-btn">
-            👻 <span>Snapchat</span>
-        </a>
-        <a href="https://www.vinted.fr/member/idf_runningshop" target="_blank" class="social-btn">
-            🛍️ <span>Vinted</span>
-        </a>
-        <a href="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98thYJI9fKY" target="_blank" class="social-btn">
-            🎬 <span>TikTok</span>
-        </a>
-    </div>
-
     <div class="footer-cart" id="footer-cart-bar">
         <button class="checkout-btn" onclick="openCartModal()">
             <span id="cart-count-label">🛒 0 article(s)</span>
@@ -453,28 +264,13 @@
                 <h2>Mon Panier</h2>
                 <button class="close-cart" onclick="closeCartModal()">&times;</button>
             </div>
-            
             <div class="cart-items-list" id="cartItemsList"></div>
-
             <div class="cart-summary">
-                <div class="summary-row">
-                    <span>Sous-total :</span>
-                    <span id="subtotalAmount">0 €</span>
-                </div>
-                <div class="summary-row">
-                    <span>Remise (-5€ / art. dès 70€) :</span>
-                    <span id="discountAmount" style="color: #34c759;">-0 €</span>
-                </div>
-                <div class="summary-row">
-                    <span>Frais de port :</span>
-                    <span id="shippingAmount">10 €</span>
-                </div>
-                <div class="summary-row total">
-                    <span>Total à régler :</span>
-                    <span id="finalTotalAmount">0 €</span>
-                </div>
+                <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
+                <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
+                <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">10 €</span></div>
+                <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
             </div>
-
             <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
         </div>
     </div>
@@ -484,7 +280,7 @@
         tg.expand();
 
         const SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DakG_o6bZnO"; // Ta Publishable key
+        const SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DakG_o6bZnO";
 
         const items = [
             { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
@@ -501,6 +297,27 @@
 
         let currentSize = 'ALL';
         let cart = [];
+        let soldItems = []; // Liste des IDs déjà vendus récupérée de Supabase
+
+        async function fetchSoldItems() {
+            try {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes?select=items`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                if (response.ok) {
+                    let data = await response.json();
+                    soldItems = [];
+                    data.forEach(row => {
+                        if (row.items) {
+                            row.items.split(',').forEach(id => soldItems.push(id.trim()));
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Erreur chargement stock", e);
+            }
+            renderCatalog();
+        }
 
         function renderCatalog(filterText = '') {
             const container = document.getElementById("catalog-container");
@@ -518,6 +335,7 @@
             }
 
             filtered.forEach(item => {
+                const isSoldOut = soldItems.includes(item.id);
                 const card = document.createElement("div");
                 card.className = "item-card";
                 card.innerHTML = `
@@ -529,7 +347,10 @@
                         </div>
                         <div class="item-price">${item.prix} €</div>
                     </div>
-                    <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
+                    ${isSoldOut 
+                        ? `<button class="add-btn sold-out" disabled>Épuisé</button>` 
+                        : `<button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>`
+                    }
                 `;
                 container.appendChild(card);
             });
@@ -565,11 +386,8 @@
         function removeFromCart(index) {
             cart.splice(index, 1);
             updateCartUI();
-            if (cart.length === 0) {
-                closeCartModal();
-            } else {
-                openCartModal();
-            }
+            if (cart.length === 0) closeCartModal();
+            else openCartModal();
         }
 
         function updateCartUI() {
@@ -590,24 +408,20 @@
                 let item = items.find(i => i.id === id);
                 if (item) subtotal += item.prix;
             });
-
             let discount = 0;
             cart.forEach(id => {
                 let item = items.find(i => i.id === id);
                 if (item && item.prix >= 70) discount += 5;
             });
-
             let shipping = (subtotal - discount >= 170) ? 0 : 10;
             let finalTotal = subtotal - discount + shipping;
             if (finalTotal < 0) finalTotal = 0;
-
             return { subtotal, discount, shipping, finalTotal };
         }
 
         function openCartModal() {
             const listEl = document.getElementById("cartItemsList");
             listEl.innerHTML = "";
-
             cart.forEach((id, index) => {
                 let item = items.find(i => i.id === id);
                 if (item) {
@@ -623,13 +437,11 @@
                     listEl.appendChild(row);
                 }
             });
-
             let calc = calculateTotals();
             document.getElementById("subtotalAmount").textContent = calc.subtotal + " €";
             document.getElementById("discountAmount").textContent = "-" + calc.discount + " €";
             document.getElementById("shippingAmount").textContent = calc.shipping === 0 ? "Offert 🎉" : calc.shipping + " €";
             document.getElementById("finalTotalAmount").textContent = calc.finalTotal + " €";
-
             document.getElementById("cartModal").style.display = "flex";
         }
 
@@ -660,10 +472,11 @@
                 });
 
                 if (response.ok) {
-                    alert("✨ Commande validée avec succès ! Le bot t'a pris en charge.");
+                    alert("✨ Commande validée avec succès ! L'article passe en rupture de stock.");
                     cart = [];
                     updateCartUI();
                     closeCartModal();
+                    fetchSoldItems(); // Recharge le stock instantanément
                 } else {
                     alert("Erreur lors de l'envoi de la commande.");
                 }
@@ -672,7 +485,8 @@
             }
         }
 
-        renderCatalog();
+        // Charger le stock dès l'ouverture de la page
+        fetchSoldItems();
     </script>
 </body>
 </html>
