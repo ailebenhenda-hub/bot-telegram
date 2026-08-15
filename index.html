@@ -13,6 +13,7 @@
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
             --accent: #ffffff;
+            --success: #34c759;
         }
 
         body {
@@ -49,7 +50,6 @@
             font-weight: 600;
         }
 
-        /* Encadré d'annonce modifiable */
         .announcement-banner {
             background: linear-gradient(135deg, #18181a, #111113);
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -75,7 +75,6 @@
             line-height: 1.4;
         }
 
-        /* Barre de recherche et filtres */
         .search-box {
             width: 100%;
             padding: 13px 16px;
@@ -120,7 +119,6 @@
             border-color: #ffffff;
         }
 
-        /* Grille catalogue */
         .catalog-grid {
             display: flex;
             flex-direction: column;
@@ -182,7 +180,7 @@
             font-weight: 700;
             font-size: 12px;
             cursor: pointer;
-            transition: transform 0.1s;
+            transition: transform 0.1s, background-color 0.2s;
             white-space: nowrap;
         }
 
@@ -190,7 +188,11 @@
             transform: scale(0.95);
         }
 
-        /* Section Communauté & Avis */
+        .add-btn.added {
+            background-color: #34c759;
+            color: #ffffff;
+        }
+
         .section-title {
             font-size: 14px;
             font-weight: 800;
@@ -211,7 +213,6 @@
             line-height: 1.4;
         }
 
-        /* Réseaux Sociaux (Bas de page) */
         .social-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -235,11 +236,6 @@
             gap: 4px;
         }
 
-        .social-btn:active {
-            background-color: rgba(255,255,255,0.1);
-        }
-
-        /* Bouton Panier Fixe */
         .footer-cart {
             position: fixed;
             bottom: 0;
@@ -250,6 +246,7 @@
             border-top: 1px solid var(--card-border);
             padding: 14px 16px;
             z-index: 100;
+            display: none;
         }
 
         .checkout-btn {
@@ -262,8 +259,125 @@
             font-weight: 800;
             font-size: 14px;
             cursor: pointer;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             box-shadow: 0 4px 20px rgba(255,255,255,0.12);
+        }
+
+        .cart-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .cart-content {
+            background-color: #141416;
+            border-top: 1px solid var(--card-border);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 20px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .cart-header h2 {
+            font-size: 18px;
+            font-weight: 800;
+            margin: 0;
+        }
+
+        .close-cart {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .cart-items-list {
+            overflow-y: auto;
+            max-height: 35vh;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .cart-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.03);
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .remove-item {
+            color: #ff453a;
+            background: none;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .cart-summary {
+            border-top: 1px solid var(--card-border);
+            padding-top: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: var(--secondary-text);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .summary-row.total {
+            color: white;
+            font-weight: 900;
+            font-size: 16px;
+            margin-top: 6px;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+            padding-top: 8px;
+        }
+
+        .validate-order-btn {
+            background-color: #34c759;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            text-align: center;
         }
 
         .no-result {
@@ -282,7 +396,7 @@
     </header>
 
     <div class="announcement-banner">
-        📢 <strong>Annonce :</strong> Prochain restock prévu fin de mois !! Sur les Phenom elite panatalon trail pull Tech.
+        📢 <strong>Annonce :</strong> Prochain gros drop prévu ce week-end ! Restez connectés sur le canal.
     </div>
 
     <div class="banner">
@@ -300,7 +414,8 @@
     </div>
 
     <div class="catalog-grid" id="catalog-container">
-        </div>
+        <!-- Généré dynamiquement -->
+    </div>
 
     <div class="section-title">⭐ Ce que pensent nos clients</div>
     <div class="reviews-box">
@@ -316,13 +431,50 @@
         <a href="https://www.vinted.fr/member/idf_runningshop" target="_blank" class="social-btn">
             🛍️ <span>Vinted</span>
         </a>
-        <a href="https://tiktok.com" target="_blank" class="social-btn">
+        <a href="https://www.tiktok.com/@idf_runningshop?_r=1&_t=ZN-98thYJI9fKY" target="_blank" class="social-btn">
             🎬 <span>TikTok</span>
         </a>
     </div>
 
-    <div class="footer-cart">
-        <button class="checkout-btn" onclick="openBotChat()">💬 Gérer mon panier / Parrainage via le Bot</button>
+    <!-- Barre inférieure du panier -->
+    <div class="footer-cart" id="footer-cart-bar">
+        <button class="checkout-btn" onclick="openCartModal()">
+            <span id="cart-count-label">🛒 0 article(s)</span>
+            <span id="cart-total-preview">0 € &rarr; Voir le panier</span>
+        </button>
+    </div>
+
+    <!-- Modale du Panier Interactif -->
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-content">
+            <div class="cart-header">
+                <h2>Mon Panier</h2>
+                <button class="close-cart" onclick="closeCartModal()">&times;</button>
+            </div>
+            
+            <div class="cart-items-list" id="cartItemsList"></div>
+
+            <div class="cart-summary">
+                <div class="summary-row">
+                    <span>Sous-total :</span>
+                    <span id="subtotalAmount">0 €</span>
+                </div>
+                <div class="summary-row">
+                    <span>Remise (-5€ / art. dès 70€) :</span>
+                    <span id="discountAmount" style="color: #34c759;">-0 €</span>
+                </div>
+                <div class="summary-row">
+                    <span>Frais de port :</span>
+                    <span id="shippingAmount">10 €</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total à régler :</span>
+                    <span id="finalTotalAmount">0 €</span>
+                </div>
+            </div>
+
+            <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander via le Bot</button>
+        </div>
     </div>
 
     <script>
@@ -334,7 +486,7 @@
             { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
             { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90 },
             { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "S", etat: "Excellent", prix: 90 },
             { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 },
             { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35 },
             { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30 },
@@ -343,6 +495,7 @@
         ];
 
         let currentSize = 'ALL';
+        let cart = [];
 
         function renderCatalog(filterText = '') {
             const container = document.getElementById("catalog-container");
@@ -371,7 +524,7 @@
                         </div>
                         <div class="item-price">${item.prix} €</div>
                     </div>
-                    <button class="add-btn" onclick="addToCart('${item.id}')">Ajouter</button>
+                    <button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>
                 `;
                 container.appendChild(card);
             });
@@ -388,12 +541,102 @@
             renderCatalog(document.getElementById('search-input').value);
         }
 
-        function addToCart(itemId) {
-            tg.sendData(itemId);
-            tg.close();
+        function addToCart(itemId, btn) {
+            cart.push(itemId);
+            updateCartUI();
+
+            btn.textContent = "✓ Ajouté";
+            btn.classList.add("added");
+            setTimeout(() => {
+                btn.textContent = "Ajouter";
+                btn.classList.remove("added");
+            }, 1000);
+
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
         }
 
-        function openBotChat() {
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+            if (cart.length === 0) {
+                closeCartModal();
+            } else {
+                openCartModal();
+            }
+        }
+
+        function updateCartUI() {
+            const footerBar = document.getElementById("footer-cart-bar");
+            if (cart.length > 0) {
+                footerBar.style.display = "block";
+                document.getElementById("cart-count-label").textContent = `🛒 ${cart.length} article(s)`;
+                let calc = calculateTotals();
+                document.getElementById("cart-total-preview").textContent = `${calc.finalTotal} € ➔ Panier`;
+            } else {
+                footerBar.style.display = "none";
+            }
+        }
+
+        function calculateTotals() {
+            let subtotal = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item) subtotal += item.prix;
+            });
+
+            let discount = 0;
+            cart.forEach(id => {
+                let item = items.find(i => i.id === id);
+                if (item && item.prix >= 70) {
+                    discount += 5;
+                }
+            });
+
+            let shipping = (subtotal - discount >= 170) ? 0 : 10;
+            let finalTotal = subtotal - discount + shipping;
+            if (finalTotal < 0) finalTotal = 0;
+
+            return { subtotal, discount, shipping, finalTotal };
+        }
+
+        function openCartModal() {
+            const listEl = document.getElementById("cartItemsList");
+            listEl.innerHTML = "";
+
+            cart.forEach((id, index) => {
+                let item = items.find(i => i.id === id);
+                if (item) {
+                    const row = document.createElement("div");
+                    row.className = "cart-item-row";
+                    row.innerHTML = `
+                        <span>#${item.id} - ${item.name} (${item.taille})</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <strong>${item.prix} €</strong>
+                            <button class="remove-item" onclick="removeFromCart(${index})">&times;</button>
+                        </div>
+                    `;
+                    listEl.appendChild(row);
+                }
+            });
+
+            let calc = calculateTotals();
+            document.getElementById("subtotalAmount").textContent = calc.subtotal + " €";
+            document.getElementById("discountAmount").textContent = "-" + calc.discount + " €";
+            document.getElementById("shippingAmount").textContent = calc.shipping === 0 ? "Offert 🎉" : calc.shipping + " €";
+            document.getElementById("finalTotalAmount").textContent = calc.finalTotal + " €";
+
+            document.getElementById("cartModal").style.display = "flex";
+        }
+
+        function closeCartModal() {
+            document.getElementById("cartModal").style.display = "none";
+        }
+
+        function sendOrderToBot() {
+            if (cart.length === 0) return;
+            tg.sendData(cart.join(','));
             tg.close();
         }
 
