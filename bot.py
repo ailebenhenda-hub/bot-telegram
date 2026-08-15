@@ -941,36 +941,70 @@ def generate_invoice_pdf(user_id, order_id, items_desc, amount, delivery_mode):
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(50, height - 50, "IDF RUNNING SHOP")
+    # En-tête - Nom de la boutique & infos
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(50, height - 45, "SHVPPEUR CORP")
     
-    c.setFont("Helvetica", 10)
-    c.drawString(50, height - 70, "Boutique Streetwear & Vêtements Running Second-Main")
-    c.drawString(50, height - 85, "contact: @idf_runningshop")
+    c.setFont("Helvetica", 9)
+    c.drawString(50, height - 60, "IDF Running Shop - Vêtements Streetwear & Running Second-Main")
+    c.drawString(50, height - 73, "Telegram: @idf_runningshop | TikTok: @idf_runningshop | Snapchat: @BW0Gzw9i")
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(400, height - 50, f"FACTURE #{order_id}")
-    c.setFont("Helvetica", 10)
-    c.drawString(400, height - 68, f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    c.drawString(400, height - 85, f"Client ID: {user_id}")
-
-    c.setLineWidth(1)
-    c.line(50, height - 110, width - 50, height - 110)
-
+    # Bloc Facture & Infos client (style pro)
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, height - 140, "Désignation des articles :")
-    c.setFont("Helvetica", 10)
-    c.drawString(50, height - 160, items_desc)
+    c.drawString(380, height - 45, f"FACTURE #{order_id}")
+    c.setFont("Helvetica", 9)
+    c.drawString(380, height - 60, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    c.drawString(380, height - 73, f"Client ID : {user_id}")
+    
+    # Encadré Facturé à
+    c.setStrokeColorRGB(0.7, 0.7, 0.7)
+    c.rect(370, height - 135, 180, 50, stroke=1, fill=0)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(380, height - 100, "Facturé à :")
+    c.setFont("Helvetica", 9)
+    c.drawString(380, height - 115, f"Client Telegram ID : {user_id}")
+    c.drawString(380, height - 127, "France")
 
-    c.drawString(50, height - 190, f"Mode de livraison : {delivery_mode}")
+    # Ligne de séparation
+    c.line(50, height - 150, width - 50, height - 150)
 
+    # En-têtes du tableau
+    c.setFillColorRGB(0.9, 0.9, 0.9)
+    c.rect(50, height - 180, width - 100, 20, stroke=0, fill=1)
+    c.setFillColorRGB(0, 0, 0)
+    
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(60, height - 173, "Description des articles")
+    c.drawString(340, height - 173, "Quantité")
+    c.drawString(420, height - 173, "Livraison")
+    c.drawString(490, height - 173, "Total TTC")
+
+    # Ligne d'article
+    c.setFont("Helvetica", 9)
+    c.drawString(60, height - 205, items_desc[:55])
+    c.drawString(350, height - 205, "1.00")
+    c.drawString(415, height - 205, delivery_mode[:15])
+    c.drawString(490, height - 205, f"{amount} €")
+
+    c.setStrokeColorRGB(0.8, 0.8, 0.8)
     c.line(50, height - 220, width - 50, height - 220)
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(350, height - 250, f"TOTAL PAYÉ : {amount} €")
+    # Bloc Totaux (en bas à droite)
+    c.rect(370, height - 290, 180, 55, stroke=1, fill=0)
+    c.drawString(380, height - 255, "Total Hors TVA :")
+    c.drawRightString(540, height - 255, f"{amount} €")
+    
+    c.drawString(380, height - 270, "TVA (0% - Franchise) :")
+    c.drawRightString(540, height - 270, "0.00 €")
+    
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(380, height - 285, "MONTANT TOTAL :")
+    c.drawRightString(540, height - 285, f"{amount} €")
 
-    c.setFont("Helvetica-Oblique", 9)
-    c.drawString(50, height - 300, "Merci pour votre confiance ! - IDF Running Shop")
+    # Pied de page
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(50, 50, "Merci pour votre achat chez Shvppeur Corp / IDF Running Shop !")
+    c.drawString(50, 38, "Retrouvez tous nos drops sur Telegram et Snapchat.")
 
     c.showPage()
     c.save()
