@@ -316,7 +316,7 @@
         let currentSize = 'ALL';
         let cart = [];
         let soldItems = [];
-        let selectedShippingMethod = 'colissimo'; // Valeur par défaut
+        let selectedShippingMethod = 'colissimo';
 
         async function fetchSoldItems() {
             try {
@@ -433,11 +433,17 @@
                 if (item) subtotal += item.prix;
             });
             
+            // CORRECTION DE LA REMISE :
+            // La remise de 5€ s'applique uniquement si le panier contient 2 articles ou plus ET que l'article en question coûte 70€ ou plus.
             let discount = 0;
-            cart.forEach(id => {
-                let item = items.find(i => i.id === id);
-                if (item && item.prix >= 70) discount += 5;
-            });
+            if (cart.length >= 2) {
+                cart.forEach(id => {
+                    let item = items.find(i => i.id === id);
+                    if (item && item.prix >= 70) {
+                        discount += 5;
+                    }
+                });
+            }
 
             let shipping = 0;
             if (selectedShippingMethod === 'colissimo') {
@@ -481,7 +487,7 @@
 
                 <div class="cart-summary">
                     <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
-                    <div class="summary-row"><span>Remise (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
+                    <div class="summary-row"><span>Remise lot (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
                     <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">6 €</span></div>
                     <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
                 </div>
@@ -549,6 +555,7 @@
             };
 
             try {
+                // 1. Enregistrement Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -561,15 +568,20 @@
                 });
 
                 if (response.ok) {
-                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            chat_id: ADMIN_GROUP_ID,
-                            text: `🚨 NOUVELLE COMMANDE (WEB APP)\n👤 Client : ${username}\n📦 Articles : ${itemsSummary}\n🚚 Livraison : ${shippingTextLabel}\n💰 Montant : ${calc.finalTotal} €`,
-                            parse_mode: "Markdown"
-                        })
-                    });
+                    // 2. Notification Telegram (sécurisée en mode no-cors / fetch avec gestion d'erreur pour éviter de bloquer l'UI)
+                    try {
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chat_id: ADMIN_GROUP_ID,
+                                text: `🚨 NOUVELLE COMMANDE (WEB APP)\n👤 Client : ${username}\n📦 Articles : ${itemsSummary}\n🚚 Livraison : ${shippingTextLabel}\n💰 Montant : ${calc.finalTotal} €`,
+                                parse_mode: "Markdown"
+                            })
+                        });
+                    } catch (tgErr) {
+                        console.log("Alerte Telegram envoyée en arrière-plan ou bloquée par CORS client.", tgErr);
+                    }
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
                     
