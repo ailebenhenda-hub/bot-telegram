@@ -241,7 +241,6 @@ def toggle_vip(user_id):
     return status
 
 def calculate_colissimo_shipping(total_weight_grams):
-    # Grille officielle Colissimo France métropolitaine (domicile)
     if total_weight_grams <= 250:
         return 5.49
     elif total_weight_grams <= 500:
@@ -265,7 +264,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     
-    # En-tête style pro
     p.setFont("Helvetica-Bold", 18)
     p.drawString(50, 740, "SHVPPEUR CORP")
     p.setFont("Helvetica", 9)
@@ -278,7 +276,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     p.drawRightString(560, 725, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     p.drawRightString(560, 712, f"Client Telegram ID : {client_id}")
     
-    # Encadré Client
     p.rect(380, 640, 180, 55)
     p.setFont("Helvetica-Bold", 9)
     p.drawString(390, 680, "Facturé à :")
@@ -286,7 +283,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     p.drawString(390, 665, f"Client : {client_name}")
     p.drawString(390, 650, f"ID : {client_id}")
 
-    # Tableau des articles
     p.setFillColorRGB(0.9, 0.9, 0.9)
     p.rect(50, 580, 510, 20, fill=1, stroke=0)
     p.setFillColorRGB(0, 0, 0)
@@ -302,7 +298,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     
     p.line(50, 535, 560, 535)
     
-    # Totaux
     p.drawString(380, 510, "Total Hors TVA :")
     p.drawRightString(550, 510, f"{total_price} €")
     p.drawString(380, 495, "TVA (0% - Franchise) :")
@@ -311,7 +306,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     p.drawString(380, 475, "MONTANT TOTAL :")
     p.drawRightString(550, 475, f"{total_price} €")
     
-    # Pied de page
     p.setFont("Helvetica-Oblique", 8)
     p.drawString(50, 100, "Merci pour votre achat chez Shvppeur Corp / IDF Running Shop !")
     p.drawString(50, 88, "Retrouvez tous nos drops sur Telegram et Snapchat.")
@@ -697,7 +691,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         nb_items = len(cart_items)
         current_delivery = delivery_choices.get(user_id, "gare_proche")
         
-        # Calcul du poids total pour Colissimo ou forfait pour gares IDF
         if current_delivery == "colissimo":
             total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
             shipping = calculate_colissimo_shipping(total_weight)
@@ -895,15 +888,14 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📦 Voir le catalogue", callback_data="show_catalog")]])
     else:
         current_delivery = delivery_choices.get(user_id, "gare_proche")
-        text = "🛒 **TON PANIER** :\n\n"
+        text = "🛒 TON PANIER :\n\n"
         total = 0
         nb_items = len(cart_items)
         for item_id in cart_items:
             item = catalog[item_id]
-            text += f"• #{item_id} - {item['name']} : **{item['prix']} €** ({item['poids']}g)\n"
+            text += f"• #{item_id} - {item['name']} : {item['prix']} € ({item['poids']}g)\n"
             total += item['prix']
         
-        # Calcul des frais de port dissociés (Colissimo dynamique vs Gares fixes)
         if current_delivery == "colissimo":
             total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
             shipping = calculate_colissimo_shipping(total_weight)
@@ -933,7 +925,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         text += f"• Livraison ({current_delivery}) : +{shipping} €\n"
         if discount > 0:
             text += f"• Remise dégressive ({nb_items} art.) : -{discount} €\n"
-        text += f"💰 **TOTAL : {final_total} €**"
+        text += f"💰 TOTAL : {final_total} €"
 
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🚂 Gare IDF Proche (5€)", callback_data="set_del_gare_proche"),
@@ -944,7 +936,9 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
             [InlineKeyboardButton("🗑️ Vider", callback_data="clear_cart"),
              InlineKeyboardButton("📦 Catalogue", callback_data="show_catalog")]
         ])
-    await query.edit_message_text(text=text, reply_markup=kb, parse_mode="Markdown")
+    
+    # Correction : pas de parse_mode="Markdown" ici pour éviter les crashs de caractères spéciaux
+    await query.edit_message_text(text=text, reply_markup=kb)
 
 def main():
     if not TELEGRAM_TOKEN:
