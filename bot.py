@@ -583,23 +583,44 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id == ADMIN_GROUP_ID:
         return
 
-    conn = sqlite3.connect("shop.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
-        (user.id,)
-    )
-    order = cursor.fetchone()
-    conn.close()
+    items_summary = "Non spécifié"
+    total_price = 0.0
+    shipping_info = "Non spécifié"
+    found_order = False
 
-    if order:
-        items_summary = order[0]
-        total_price = order[1]
-        shipping_info = order[2]
-    else:
-        items_summary = "Non spécifié"
-        total_price = 0.0
-        shipping_info = "Non spécifié"
+    # 1. Essayer de récupérer depuis Supabase (si commande WebApp)
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&order=id.desc&limit=1",
+            headers=SUPABASE_HEADERS
+        )
+        if response.ok:
+            data = response.json()
+            if data:
+                latest_order = data[0]
+                if latest_order.get("statut") in ["nouveau", "En attente de paiement"]:
+                    items_summary = latest_order.get("items_summary", "Non spécifié")
+                    total_price = latest_order.get("total_amount", 0.0)
+                    shipping_info = latest_order.get("shipping", "Non spécifié")
+                    found_order = True
+    except Exception as e:
+        logging.error(f"Erreur Supabase dans handle_photo : {e}")
+
+    # 2. Si rien dans Supabase, chercher dans SQLite (si commande direct Telegram)
+    if not found_order:
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
+            (user.id,)
+        )
+        order = cursor.fetchone()
+        conn.close()
+
+        if order:
+            items_summary = order[0]
+            total_price = order[1]
+            shipping_info = order[2]
 
     forwarded = await context.bot.forward_message(
         chat_id=ADMIN_GROUP_ID,
