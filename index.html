@@ -318,40 +318,31 @@
         const ADMIN_GROUP_ID = "-1003956183527";
         const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
 
-        const items = [
-            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, poids: 250 },
-            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, poids: 250 },
-            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, poids: 250 },
-            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, poids: 800 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, poids: 250 },
-            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, poids: 150 },
-            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, poids: 150 },
-            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, poids: 150 },
-            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, poids: 900 },
-            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, poids: 250 }
-        ];
-
+        let items = [];
         let currentSize = 'ALL';
         let cart = [];
-        let soldItems = [];
         let selectedShippingMethod = 'colissimo';
 
-        async function fetchSoldItems() {
+        async function fetchCatalog() {
             try {
-                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes?select=items`, {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/catalog?select=*`, {
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
                 });
                 if (response.ok) {
                     let data = await response.json();
-                    soldItems = [];
-                    data.forEach(row => {
-                        if (row.items) {
-                            row.items.split(',').forEach(id => soldItems.push(id.trim()));
-                        }
-                    });
+                    // Conversion des données Supabase au format attendu par la WebApp
+                    items = data.map(r => ({
+                        id: String(r.item_id || r.id),
+                        name: r.name,
+                        taille: r.taille || "U",
+                        etat: r.etat || "Bon état",
+                        prix: Number(r.prix || 0),
+                        poids: Number(r.poids || 250),
+                        available: r.available === 1 || r.available === true
+                    }));
                 }
             } catch (e) {
-                console.error("Erreur chargement stock", e);
+                console.error("Erreur chargement catalogue Supabase", e);
             }
             renderCatalog();
         }
@@ -361,7 +352,7 @@
             container.innerHTML = "";
 
             const filtered = items.filter(item => {
-                const matchesSize = currentSize === 'ALL' || item.taille === currentSize;
+                const matchesSize = currentSize === 'ALL' || (item.taille && item.taille.toUpperCase() === currentSize.toUpperCase());
                 const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || item.id.includes(filterText);
                 return matchesSize && matchesSearch;
             });
@@ -372,7 +363,7 @@
             }
 
             filtered.forEach(item => {
-                const isSoldOut = soldItems.includes(item.id);
+                const isSoldOut = !item.available;
                 const card = document.createElement("div");
                 card.className = "item-card";
                 card.innerHTML = `
@@ -589,6 +580,7 @@
             };
 
             try {
+                // Enregistrement de la commande dans Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -601,6 +593,19 @@
                 });
 
                 if (response.ok) {
+                    // Mettre à jour la disponibilité des articles commandés dans le catalogue Supabase (available = 0)
+                    for (let id of cart) {
+                        await fetch(`${SUPABASE_URL}/rest/v1/catalog?item_id=eq.${id}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'apikey': SUPABASE_KEY,
+                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ available: 0 })
+                        });
+                    }
+
                     try {
                         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             method: 'POST',
@@ -637,7 +642,7 @@
 
                     cart = [];
                     updateCartUI();
-                    fetchSoldItems();
+                    fetchCatalog(); // Recharger le catalogue pour griser les articles achetés
 
                 } else {
                     let errorData = await response.json();
@@ -650,7 +655,8 @@
             }
         }
 
-        fetchSoldItems();
+        // Lancer le chargement du catalogue au démarrage de la Web App
+        fetchCatalog();
     </script>
 </body>
 </html>
