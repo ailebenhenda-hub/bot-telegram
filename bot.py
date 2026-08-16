@@ -588,21 +588,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     shipping_info = "Non spécifié"
     found_order = False
 
-    # 1. Essayer de récupérer depuis Supabase (si commande WebApp)
+    # 1. Priorité à la Web App (Supabase) - Filtrage strict sur le statut 'nouveau'
     try:
         response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&order=id.desc&limit=1",
+            f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&statut=eq.nouveau&order=id.desc&limit=1",
             headers=SUPABASE_HEADERS
         )
         if response.ok:
             data = response.json()
             if data:
                 latest_order = data[0]
-                if latest_order.get("statut") in ["nouveau", "En attente de paiement"]:
-                    items_summary = latest_order.get("items_summary", "Non spécifié")
-                    total_price = latest_order.get("total_amount", 0.0)
-                    shipping_info = latest_order.get("shipping", "Non spécifié")
-                    found_order = True
+                items_summary = latest_order.get("items_summary", "Non spécifié")
+                total_price = latest_order.get("total_amount", 0.0)
+                shipping_info = latest_order.get("shipping", "Non spécifié")
+                found_order = True
     except Exception as e:
         logging.error(f"Erreur Supabase dans handle_photo : {e}")
 
@@ -621,6 +620,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             items_summary = order[0]
             total_price = order[1]
             shipping_info = order[2]
+            found_order = True
+
+    if not found_order:
+        await update.message.reply_text("❌ Aucune commande en attente trouvée. Merci de contacter le support.")
+        return
 
     forwarded = await context.bot.forward_message(
         chat_id=ADMIN_GROUP_ID,
@@ -634,7 +638,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
              f"📦 Articles : {items_summary}\n"
              f"🚚 Livraison : {shipping_info}\n"
              f"💰 Montant : {total_price} €\n"
-             f"Mode : Paiement Telegram",
+             f"Mode : Paiement",
         reply_to_message_id=forwarded.message_id,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("👨‍💻 Prise en charge", callback_data=f"take_charge_{user.id}")],
@@ -746,7 +750,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         clear_cart(user_id)
         await query.edit_message_text(
             text=f"✅ **Commande enregistrée !**\n\nTotal à régler : **{final_total} €**\n"
-                 f"Veuillez effectuer le virement Revolut direct ou via la Web App, puis envoyez la photo de votre reçu ici dans le chat.",
+                 f"Veuillez effectuer le virement Revolut direct, puis envoyez la photo de votre reçu ici dans le chat.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)],
                 [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
@@ -830,10 +834,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(parts[2])
         fallback_price = float(parts[3]) if len(parts) > 3 else 0.0
 
+        # Mettre à jour Supabase (archiver la commande en statut 'payé')
+        try:
+            requests.patch(
+                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
+                headers=SUPABASE_HEADERS,
+                json={"statut": "payé"}
+            )
+        except Exception as e:
+            logging.error(f"Erreur update Supabase validation : {e}")
+
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
-        
-        # 1. On cherche en priorité une commande 'En attente de paiement'
         cursor.execute(
             "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
             (target_id,)
@@ -844,32 +856,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ord_id, items_str, final_price, delivery_mode = ord_data
             cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
         else:
-            # 2. Si aucune commande 'En attente', on prend la toute dernière commande de la base
-            cursor.execute(
-                "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? ORDER BY order_id DESC LIMIT 1",
-                (target_id,)
-            )
-            ord_data_fallback = cursor.fetchone()
-            if ord_data_fallback:
-                ord_id, items_str, final_price, delivery_mode = ord_data_fallback
-                cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
-            else:
-                ord_id = 0
-                items_str = "Articles divers"
-                final_price = fallback_price
-                delivery_mode = "Standard"
+            ord_id = 0
+            items_str = "Articles divers / WebApp"
+            final_price = fallback_price
+            delivery_mode = "Standard"
 
         conn.commit()
         conn.close()
-
-        try:
-            requests.patch(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
-                headers=SUPABASE_HEADERS,
-                json={"statut": "payé"}
-            )
-        except Exception as e:
-            logging.error(f"Erreur update Supabase validation : {e}")
 
         add_points(target_id, int(final_price))
         referrer_id = give_referral_reward(target_id)
@@ -902,7 +895,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         try:
             requests.patch(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
+                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
                 headers=SUPABASE_HEADERS,
                 json={"statut": "refusé"}
             )
