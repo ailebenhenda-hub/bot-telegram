@@ -332,9 +332,7 @@ async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
     res = cursor.fetchone()
     
     if res and res[0] == 'En attente de paiement':
-        # Marquer la commande comme annulée
         cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ?", (order_id,))
-        # Libérer les articles dans le catalogue
         for i_id in item_ids:
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
         conn.commit()
@@ -343,8 +341,7 @@ async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.send_message(
                 chat_id=user_id,
-                text="❌ **Délai dépassé !** Ta commande a été automatiquement annulée et les articles ont été remis en stock.",
-                parse_mode="Markdown"
+                text="❌ Délai dépassé ! Ta commande a été automatiquement annulée et les articles ont été remis en stock."
             )
         except Exception:
             pass
@@ -364,10 +361,9 @@ async def send_3min_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     if res and res[0] == 'En attente de paiement':
-        # Texte de rappel en ROUGE (via balises HTML ou formatage texte alerte)
         red_reminder_text = (
-            "🔴 **[RAPPEL URGENT]** 🔴\n\n"
-            "🚨 **N'oublie pas d'envoyer ton reçu de paiement pour finaliser ta commande !** 🚨\n"
+            "🔴 [RAPPEL URGENT] 🔴\n\n"
+            "🚨 N'oublie pas d'envoyer ton reçu de paiement pour finaliser ta commande ! 🚨\n"
             "Si tu n'envoies pas ton reçu ou si tu ne valides pas, ta commande expirera et tes articles seront libérés pour les autres acheteurs."
         )
         
@@ -380,17 +376,14 @@ async def send_3min_reminder_job(context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=user_id,
                 text=red_reminder_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="Markdown"
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception:
             pass
         
-        # Programmer la suppression définitive et la libération du stock 3 minutes après ce rappel (ou total 3 min depuis le début selon configuration)
-        # Ici on programme l'expiration totale 180 secondes après la commande initiale (ou on relance un timer)
         context.job_queue.run_once(
             payment_timeout_job,
-            when=180,  # 3 minutes supplémentaires ou ajusté selon le besoin exact
+            when=180,
             data={"user_id": user_id, "order_id": order_id, "item_ids": item_ids},
             name=f"timeout_{user_id}_{order_id}"
         )
@@ -430,7 +423,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = int(arg.split("_")[1])
                 success = set_referrer(user.id, referrer_id)
                 if success:
-                    await update.message.reply_text("🎁 Tu as rejoint le lien de parrainage ! Ton parrain remportera -5 € si tu valides une commande sous **7 jours**.")
+                    await update.message.reply_text("🎁 Tu as rejoint le lien de parrainage ! Ton parrain remportera -5 € si tu valides une commande sous 7 jours.")
             except ValueError:
                 pass
 
@@ -480,7 +473,7 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
         return
     if len(context.args) < 2:
-        await update.message.reply_text("⚠️ Syntaxe : `/suivi ID_TELEGRAM NUMERO_SUIVI`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Syntaxe : /suivi ID_TELEGRAM NUMERO_SUIVI")
         return
     try:
         target_id = int(context.args[0])
@@ -498,8 +491,7 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(
             chat_id=target_id, 
-            text=f"🚚 **Bonne nouvelle ! Ton colis a été expédié.**\n\nNuméro de suivi : `{tracking}`\n\n👉 [Clique ici pour suivre ton colis sur La Poste]({tracking_link})",
-            parse_mode="Markdown"
+            text=f"🚚 Bonne nouvelle ! Ton colis a été expédié.\n\nNuméro de suivi : {tracking}\n\n👉 Lien de suivi La Poste : {tracking_link}"
         )
         await update.message.reply_text(f"✅ Suivi enregistré et envoyé à l'utilisateur #{target_id} avec succès.")
     except ValueError:
@@ -509,13 +501,13 @@ async def admin_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
         return
     if not context.args:
-        await update.message.reply_text("⚠️ Syntaxe : `/annonce Votre message`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Syntaxe : /annonce Votre message")
         return
     message_text = " ".join(context.args)
     count = 0
     for uid in known_users:
         try:
-            await context.bot.send_message(chat_id=uid, text=f"📢 **ANNONCE OFFICIELLE**\n\n{message_text}", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=uid, text=f"📢 ANNONCE OFFICIELLE\n\n{message_text}")
             count += 1
         except Exception:
             pass
@@ -525,7 +517,7 @@ async def admin_dropvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
         return
     if not context.args:
-        await update.message.reply_text("⚠️ Syntaxe : `/dropVIP Message`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Syntaxe : /dropVIP Message")
         return
     message_text = " ".join(context.args)
     conn = sqlite3.connect("shop.db")
@@ -538,7 +530,7 @@ async def admin_dropvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for row in vip_users:
         uid = row[0]
         try:
-            await context.bot.send_message(chat_id=uid, text=f"🚨 **ALERTE DROP VIP** 🚨\n\n{message_text}", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=uid, text=f"🚨 ALERTE DROP VIP 🚨\n\n{message_text}")
             count += 1
         except Exception:
             pass
@@ -556,7 +548,7 @@ async def admin_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE users SET banned = 1 WHERE user_id = ?", (target_id,))
         conn.commit()
         conn.close()
-        await update.message.reply_text(f"🔨 L'utilisateur `{target_id}` a été banni.")
+        await update.message.reply_text(f"🔨 L'utilisateur {target_id} a été banni.")
     except ValueError:
         pass
 
@@ -572,7 +564,7 @@ async def admin_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE users SET banned = 0 WHERE user_id = ?", (target_id,))
         conn.commit()
         conn.close()
-        await update.message.reply_text(f"✨ L'utilisateur `{target_id}` a été débanni.")
+        await update.message.reply_text(f"✨ L'utilisateur {target_id} a été débanni.")
     except ValueError:
         pass
 
@@ -585,12 +577,12 @@ async def admin_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(context.args[0])
         if len(context.args) == 1:
             u_data = get_user(target_id)
-            await update.message.reply_text(f"⭐ L'utilisateur `{target_id}` possède **{u_data['points']} pts**.", parse_mode="Markdown")
+            await update.message.reply_text(f"⭐ L'utilisateur {target_id} possède {u_data['points']} pts.")
         elif len(context.args) == 2:
             delta = int(context.args[1])
             add_points(target_id, delta)
             u_data = get_user(target_id)
-            await update.message.reply_text(f"✅ Solde mis à jour pour `{target_id}`. Nouveau total : **{u_data['points']} pts**.", parse_mode="Markdown")
+            await update.message.reply_text(f"✅ Solde mis à jour pour {target_id}. Nouveau total : {u_data['points']} pts.")
     except ValueError:
         pass
 
@@ -598,7 +590,7 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
         return
     if len(context.args) < 3:
-        await update.message.reply_text("⚠️ Syntaxe : `/facture NomClient Article Montant`\nExemple : `/facture Lucas PantalonTrail 60`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Syntaxe : /facture NomClient Article Montant\nExemple : /facture Lucas PantalonTrail 60")
         return
     client_name = context.args[0]
     item_name = " ".join(context.args[1:-1])
@@ -691,18 +683,17 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     cart_items = get_cart(user_id)
     if not cart_items:
         await query.edit_message_text(
-            "🛒 **Ton panier est vide.**\n\nAjoute des articles depuis le catalogue ou la Web App !",
-            reply_markup=get_main_keyboard(user_id),
-            parse_mode="Markdown"
+            "🛒 Ton panier est vide.\n\nAjoute des articles depuis le catalogue ou la Web App !",
+            reply_markup=get_main_keyboard(user_id)
         )
         return
 
-    text = "🛒 **TON PANIER ACTUEL**\n\n"
+    text = "🛒 TON PANIER ACTUEL\n\n"
     total = 0
     for item_id in cart_items:
         if item_id in catalog:
             it = catalog[item_id]
-            text += f"• **#{item_id}** - {it['name']} ({it['taille']} | {it['etat']}) : **{it['prix']} €**\n"
+            text += f"• #{item_id} - {it['name']} ({it['taille']} | {it['etat']}) : {it['prix']} €\n"
             total += it['prix']
 
     nb_items = len(cart_items)
@@ -733,7 +724,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     text += f"\n🚚 Livraison ({current_delivery}) : +{shipping} €"
     if discount > 0:
         text += f"\n🎁 Remise paliers : -{discount} €"
-    text += f"\n\n💰 **TOTAL FINAL : {final_total} €**"
+    text += f"\n\n💰 TOTAL FINAL : {final_total} €"
 
     kb = [
         [InlineKeyboardButton("🚆 Livraison Gares IDF", callback_data="set_del_gare_proche"),
@@ -742,7 +733,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         [InlineKeyboardButton("🗑️ Vider le Panier", callback_data="clear_cart")],
         [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
     ]
-    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
 # --- CALLBACKS ---
 
@@ -831,7 +822,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         final_total = max(0, total + shipping - discount)
         items_names = ", ".join([catalog[i]['name'] for i in cart_items if i in catalog])
 
-        # 1. Enregistrement de la commande
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute(
@@ -840,7 +830,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         order_id = cursor.lastrowid
         
-        # 2. Bloquer immédiatement les articles en stock (available = 0)
         for item_id in cart_items:
             cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
         
@@ -849,11 +838,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         clear_cart(user_id)
         
-        # 3. Programmer la relance automatique des 3 minutes et l'expiration
         if context.job_queue:
             context.job_queue.run_once(
                 send_3min_reminder_job,
-                when=180,  # 3 minutes (180 secondes)
+                when=180,
                 data={"user_id": user_id, "order_id": order_id, "item_ids": cart_items},
                 name=f"reminder_{user_id}_{order_id}"
             )
@@ -864,14 +852,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pay_or_contact_button = InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)
 
         await query.edit_message_text(
-            text=f"✅ **Commande enregistrée !** (Articles réservés pour 3 minutes)\n\nTotal à régler : **{final_total} €**\n"
-                 f"🔴 **ATTENTION : N'oublie pas d'envoyer la photo de ton reçu de paiement directement ici dans le chat pour valider ta commande !**",
+            text=f"✅ Commande enregistrée ! (Articles réservés pour 3 minutes)\n\nTotal à régler : {final_total} €\n"
+                 f"🔴 ATTENTION : N'oublie pas d'envoyer la photo de ton reçu de paiement directement ici dans le chat pour valider ta commande !",
             reply_markup=InlineKeyboardMarkup([
                 [pay_or_contact_button],
                 [InlineKeyboardButton("💬 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")],
                 [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
-            ]),
-            parse_mode="Markdown"
+            ])
         )
 
     elif query.data.startswith("cancel_order_"):
@@ -888,20 +875,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
 
         await query.edit_message_text(
-            text="❌ **Commande annulée.** Les articles ont été libérés et remis en stock.",
-            reply_markup=get_main_keyboard(user_id),
-            parse_mode="Markdown"
+            text="❌ Commande annulée. Les articles ont été libérés et remis en stock.",
+            reply_markup=get_main_keyboard(user_id)
         )
 
     elif query.data == "filter_size":
-        text = "🔍 **Filtrer par taille** :\nSélectionne une taille :"
+        text = "🔍 Filtrer par taille :\nSélectionne une taille :"
         kb = [
             [InlineKeyboardButton("Taille S", callback_data="size_S"),
              InlineKeyboardButton("Taille M", callback_data="size_M")],
             [InlineKeyboardButton("Taille L", callback_data="size_L"),
              InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
         ]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data.startswith("size_"):
         selected_size = query.data.split("_")[1]
@@ -920,7 +906,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += "Aucun article disponible pour cette taille.\n\n"
         kb_rows.append([InlineKeyboardButton("🔍 Choisir une autre taille", callback_data="filter_size")])
         kb_rows.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
 
     elif query.data == "show_orders":
         conn = sqlite3.connect("shop.db")
@@ -933,43 +919,43 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("📦 Tu n'as pas encore passé de commande.", reply_markup=get_main_keyboard(user_id))
             return
 
-        text = "📦 **TES DERNIÈRES COMMANDES**\n\n"
+        text = "📦 TES DERNIÈRES COMMANDES\n\n"
         for o in orders:
             oid, items, price, mode, status, tracking, date = o
-            text += f"• **Cmd #{oid}** ({date})\n  Articles : {items}\n  Total : {price}€ | Statut : *{status}*\n"
+            text += f"• Cmd #{oid} ({date})\n  Articles : {items}\n  Total : {price}€ | Statut : {status}\n"
             if tracking:
-                text += f"  Suivi : `{tracking}` ([Lien]({LAPOSTE_TRACKING_URL}{tracking}))\n"
+                text += f"  Suivi : {tracking} (Lien : {LAPOSTE_TRACKING_URL}{tracking})\n"
             text += "\n"
 
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown", disable_web_page_preview=True)
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), disable_web_page_preview=True)
 
     elif query.data == "show_referral":
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         text = (
-            f"🤝 **PROGRAMME DE PARRAINAGE**\n\n"
-            f"Partage ton lien unique avec tes amis. S'ils passent une commande sous 7 jours, ils déclenchent ta récompense de **-5 €** !\n\n"
-            f"🔗 Ton lien :\n`{ref_link}`"
+            f"🤝 PROGRAMME DE PARRAINAGE\n\n"
+            f"Partage ton lien unique avec tes amis. S'ils passent une commande sous 7 jours, ils déclenchent ta récompense de -5 € !\n\n"
+            f"🔗 Ton lien :\n{ref_link}"
         )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == "show_points":
-        text = f"⭐ **PROGRAMME FIDÉLITÉ**\n\nTu possèdes actuellement **{u_data['points']} points** fidélité.\nContinue tes achats pour gagner plus d'avantages !"
+        text = f"⭐ PROGRAMME FIDÉLITÉ\n\nTu possèdes actuellement {u_data['points']} points fidélité.\nContinue tes achats pour gagner plus d'avantages !"
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == "size_guide":
         text = (
-            "📏 **GUIDE DES TAILLES**\n\n"
-            "• **S** : Idéal pour 1m60 - 1m70 (Coupe ajustée running)\n"
-            "• **M** : Idéal pour 1m70 - 1m80\n"
-            "• **L** : Idéal pour 1m80 - 1m90+\n\n"
+            "📏 GUIDE DES TAILLES\n\n"
+            "• S : Idéal pour 1m60 - 1m70 (Coupe ajustée running)\n"
+            "• M : Idéal pour 1m70 - 1m80\n"
+            "• L : Idéal pour 1m80 - 1m90+\n\n"
             "N'hésite pas à contacter le vendeur si tu as un doute !"
         )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == "toggle_vip_status":
         status = toggle_vip(user_id)
@@ -979,7 +965,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "click_and_collect_info":
         text = (
-            "🤝 **LIVRAISON GARES IDF (Mains Propres)**\n\n"
+            "🤝 LIVRAISON GARES IDF (Mains Propres)\n\n"
             "Forfaits fixes par zone (sans poids) :\n"
             "• Gare proche : 5 €\n"
             "• Gare moyenne : 10 €\n"
@@ -987,7 +973,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Contacte le vendeur pour convenir d'un rendez-vous en gare !"
         )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data.startswith("confirm_pay_") or query.data.startswith("refuse_pay_") or query.data.startswith("take_charge_"):
         if query.message.chat.id != ADMIN_GROUP_ID:
@@ -1007,13 +993,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("✅ Paiement Validé", callback_data="noop")]
             ]))
-            await context.bot.send_message(chat_id=target_uid, text="✅ **Paiement validé avec succès !** Ta commande est en cours de préparation pour l'expédition.", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=target_uid, text="✅ Paiement validé avec succès ! Ta commande est en cours de préparation pour l'expédition.")
             
             add_points(target_uid, 10)
             ref_id = give_referral_reward(target_uid)
             if ref_id:
                 try:
-                    await context.bot.send_message(chat_id=ref_id, text="🎁 Ton filleul a validé sa commande ! Tu gagnes un coupon de réduction de **-5 €**.", parse_mode="Markdown")
+                    await context.bot.send_message(chat_id=ref_id, text="🎁 Ton filleul a validé sa commande ! Tu gagnes un coupon de réduction de -5 €.")
                 except Exception:
                     pass
         elif action == "refuse":
