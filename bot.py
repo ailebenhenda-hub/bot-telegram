@@ -846,10 +846,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 name=f"reminder_{user_id}_{order_id}"
             )
 
-        if current_delivery != "colissimo":
-            pay_or_contact_button = InlineKeyboardButton("📲 Contacter le vendeur pour la remise", url=f"https://t.me/{SELLER_USERNAME}")
+        if current_delivery == "colissimo":
+            pay_or_contact_button = InlineKeyboardButton("💳 Payer sur Revolut", url=f"{REVOLUT_BASE}/{final_total}")
         else:
-            pay_or_contact_button = InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)
+            pay_or_contact_button = InlineKeyboardButton("📲 Contacter pour fixer le RDV en gare", url=f"https://t.me/{SELLER_USERNAME}")
 
         await query.edit_message_text(
             text=f"✅ Commande enregistrée ! (Articles réservés pour 3 minutes)\n\nTotal à régler : {final_total} €\n"
