@@ -441,7 +441,7 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tracking = context.args[1]
         tracking_link = f"{LAPOSTE_TRACKING_URL}{tracking}"
 
-        # 1. Mettre à jour dans Supabase (recherche la dernière commande du client, peu importe son statut récent)
+        # 1. Mettre à jour dans Supabase
         try:
             resp = requests.get(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
@@ -457,10 +457,13 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"Erreur Supabase suivi : {e}")
 
-        # 2. Mettre à jour dans SQLite (secours)
+        # 2. Mettre à jour dans SQLite (Correction de la syntaxe SQL sans ORDER BY direct)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
-        cursor.execute("UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' ORDER BY order_id DESC LIMIT 1", (tracking, target_id))
+        cursor.execute(
+            "UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' AND order_id = (SELECT MAX(order_id) FROM orders WHERE user_id = ?)",
+            (tracking, target_id, target_id)
+        )
         conn.commit()
         conn.close()
 
