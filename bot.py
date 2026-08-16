@@ -440,9 +440,8 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(context.args[0])
         tracking = context.args[1]
         tracking_link = f"{LAPOSTE_TRACKING_URL}{tracking}"
-        updated_in_supabase = False
 
-        # 1. Mettre à jour dans Supabase
+        # 1. Mettre à jour dans Supabase (recherche la dernière commande du client, peu importe son statut récent)
         try:
             resp = requests.get(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
@@ -450,13 +449,11 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             if resp.ok and resp.json():
                 cmd_id = resp.json()[0]["id"]
-                patch_resp = requests.patch(
+                requests.patch(
                     f"{SUPABASE_URL}/rest/v1/commandes?id=eq.{cmd_id}",
                     headers=SUPABASE_HEADERS,
                     json={"statut": "Expédié"}
                 )
-                if patch_resp.ok:
-                    updated_in_supabase = True
         except Exception as e:
             logging.error(f"Erreur Supabase suivi : {e}")
 
@@ -618,7 +615,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     shipping_info = "Non spécifié"
     found_order = False
 
-    # 1. Priorité à la Web App (Supabase) - Filtrage strict sur le statut 'nouveau'
+    # 1. Priorité à la Web App (Supabase) - Recherche la dernière commande avec le statut 'nouveau'
     try:
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&statut=eq.nouveau&order=id.desc&limit=1",
@@ -635,7 +632,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Erreur Supabase dans handle_photo : {e}")
 
-    # 2. Si rien dans Supabase, chercher dans SQLite (si commande direct Telegram)
+    # 2. Si rien dans Supabase, chercher dans SQLite
     if not found_order:
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -814,18 +811,38 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
 
     elif query.data == "show_orders":
+        text = "📦 **TES COMMANDES** :\n\n"
+        has_orders = False
+
+        # 1. Récupérer depuis Supabase (Web App)
+        try:
+            resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user_id}&order=id.desc",
+                headers=SUPABASE_HEADERS
+            )
+            if resp.ok:
+                supabase_orders = resp.json()
+                for so in supabase_orders:
+                    has_orders = True
+                    date_str = so.get("created_at", "Récemment")[:10]
+                    text += f"• WebApp Cmd #{so.get('id')} ({date_str}) - Statut : {so.get('statut')} | Total : {so.get('total_amount')}€\n  {so.get('items_summary')}\n\n"
+        except Exception as e:
+            logging.error(f"Erreur lecture commandes Supabase : {e}")
+
+        # 2. Récupérer depuis SQLite (Telegram)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute("SELECT order_id, items_str, total_price, delivery_mode, status, tracking_num, date FROM orders WHERE user_id = ?", (user_id,))
-        orders = cursor.fetchall()
+        sqlite_orders = cursor.fetchall()
         conn.close()
 
-        if not orders:
+        for o in sqlite_orders:
+            has_orders = True
+            text += f"• Telegram Cmd #{o[0]} ({o[6]}) - {o[4]} | Total : {o[2]}€\n  {o[1]}\n\n"
+
+        if not has_orders:
             text = "📦 Aucune commande enregistrée."
-        else:
-            text = "📦 **TES COMMANDES** :\n\n"
-            for o in orders:
-                text += f"• Cmd #{o[0]} ({o[6]}) - {o[4]} | Total : {o[2]}€\n  {o[1]}\n\n"
+
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]), parse_mode="Markdown")
 
     elif query.data == "show_referral":
@@ -869,7 +886,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         final_price = fallback_price
         ord_id = 0
 
-        # 1. Tenter de récupérer depuis Supabase en priorité
+        # 1. Mettre à jour Supabase
         try:
             resp = requests.get(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau&order=id.desc&limit=1",
@@ -885,12 +902,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             requests.patch(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
                 headers=SUPABASE_HEADERS,
-                json={"statut": "payé"}
+                json={"statut": "Payé"}
             )
         except Exception as e:
             logging.error(f"Erreur Supabase validation : {e}")
 
-        # 2. Vérifier aussi dans SQLite (si commande direct Telegram)
+        # 2. Vérifier aussi dans SQLite
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute(
@@ -937,7 +954,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             requests.patch(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
                 headers=SUPABASE_HEADERS,
-                json={"statut": "refusé"}
+                json={"statut": "Refusé"}
             )
         except Exception as e:
             logging.error(f"Erreur update Supabase refus : {e}")
