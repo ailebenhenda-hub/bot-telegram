@@ -299,16 +299,16 @@
         const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
 
         const items = [
-            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60 },
-            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75 },
-            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90 },
-            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90 },
-            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40 },
-            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35 },
-            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30 },
-            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70 },
-            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80 }
+            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, poids: 250 },
+            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, poids: 250 },
+            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, poids: 250 },
+            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, poids: 800 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, poids: 250 },
+            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, poids: 150 },
+            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, poids: 150 },
+            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, poids: 150 },
+            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, poids: 900 },
+            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, poids: 250 }
         ];
 
         let currentSize = 'ALL';
@@ -424,26 +424,39 @@
             }
         }
 
+        function calculateColissimoShipping(totalWeightGrams, totalPrice) {
+            if (totalPrice >= 170) return 0;
+            if (totalWeightGrams <= 250) return 5.49;
+            if (totalWeightGrams <= 500) return 7.59;
+            if (totalWeightGrams <= 750) return 9.29;
+            if (totalWeightGrams <= 1000) return 9.59;
+            if (totalWeightGrams <= 2000) return 11.19;
+            if (totalWeightGrams <= 5000) return 17.39;
+            if (totalWeightGrams <= 10000) return 25.29;
+            if (totalWeightGrams <= 15000) return 31.99;
+            return 39.59;
+        }
+
         function calculateTotals() {
             let subtotal = 0;
+            let totalWeight = 0;
             cart.forEach(id => {
                 let item = items.find(i => i.id === id);
-                if (item) subtotal += item.prix;
+                if (item) {
+                    subtotal += item.prix;
+                    totalWeight += (item.poids || 250);
+                }
             });
             
             let discount = 0;
-            if (cart.length >= 2) {
-                cart.forEach(id => {
-                    let item = items.find(i => i.id === id);
-                    if (item && item.prix >= 70) {
-                        discount += 5;
-                    }
-                });
-            }
+            if (cart.length === 2 && subtotal > 70) discount = 5;
+            else if (cart.length === 3 && subtotal > 90) discount = 10;
+            else if (cart.length === 4 && subtotal > 110) discount = 15;
+            else if (cart.length >= 5 && subtotal > 130) discount = 20;
 
             let shipping = 0;
             if (selectedShippingMethod === 'colissimo') {
-                shipping = (subtotal - discount >= 170) ? 0 : 6;
+                shipping = calculateColissimoShipping(totalWeight, subtotal);
             } else if (selectedShippingMethod === 'gare_5') {
                 shipping = 5;
             } else if (selectedShippingMethod === 'gare_10') {
@@ -474,7 +487,7 @@
                 <div class="shipping-section">
                     <label for="shippingSelect">📦 Mode de livraison :</label>
                     <select id="shippingSelect" class="shipping-select" onchange="updateShippingChoice(this)">
-                        <option value="colissimo" ${selectedShippingMethod === 'colissimo' ? 'selected' : ''}>Colissimo (6€ - Gratuit dès 170€)</option>
+                        <option value="colissimo" ${selectedShippingMethod === 'colissimo' ? 'selected' : ''}>Colissimo (Calcul au poids / Gratuit dès 170€)</option>
                         <option value="gare_5" ${selectedShippingMethod === 'gare_5' ? 'selected' : ''}>Mains propres - Gare IDF (Proche : 5€)</option>
                         <option value="gare_10" ${selectedShippingMethod === 'gare_10' ? 'selected' : ''}>Mains propres - Gare IDF (Moyenne distance : 10€)</option>
                         <option value="gare_15" ${selectedShippingMethod === 'gare_15' ? 'selected' : ''}>Mains propres - Gare IDF (Longue distance : 15€)</option>
@@ -483,8 +496,8 @@
 
                 <div class="cart-summary">
                     <div class="summary-row"><span>Sous-total :</span><span id="subtotalAmount">0 €</span></div>
-                    <div class="summary-row"><span>Remise lot (-5€ / art. dès 70€) :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
-                    <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">6 €</span></div>
+                    <div class="summary-row"><span>Remise lot :</span><span id="discountAmount" style="color: var(--success);">-0 €</span></div>
+                    <div class="summary-row"><span>Frais de port :</span><span id="shippingAmount">0 €</span></div>
                     <div class="summary-row total"><span>Total à régler :</span><span id="finalTotalAmount">0 €</span></div>
                 </div>
                 <button class="validate-order-btn" onclick="sendOrderToBot()">✨ Valider et commander</button>
