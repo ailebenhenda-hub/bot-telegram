@@ -319,7 +319,6 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
 known_users = set()
 delivery_choices = {}
 
-# --- FONCTION DE RELANCE AUTO & EXPIRATION (3 MIN) ---
 async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
     user_id = job_data["user_id"]
@@ -440,8 +439,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Ouvre la Web App ci-dessous ou utilise les boutons du menu !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
-
-# --- COMMANDES ADMIN ---
 
 async def admin_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
@@ -607,8 +604,6 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"📄 Facture officielle générée pour {client_name} ({amount} €)."
     )
 
-# --- GESTION MESSAGES ET PHOTOS ---
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if not text:
@@ -636,26 +631,37 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     items_summary = "Non spécifié"
     total_price = 0.0
     shipping_info = "Non spécifié"
+    order_id = 0
     found_order = False
 
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
+        "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
         (user.id,)
     )
     order = cursor.fetchone()
     conn.close()
 
     if order:
-        items_summary = order[0]
-        total_price = float(order[1])
-        shipping_info = order[2]
+        order_id = order[0]
+        items_summary = order[1]
+        total_price = float(order[2])
+        shipping_info = order[3]
         found_order = True
 
     if not found_order:
         await update.message.reply_text("❌ Aucune commande en attente trouvée. Merci de contacter le support.")
         return
+
+    # Annulation des tâches de rappel et de timeout en cours
+    current_jobs = context.job_queue.get_jobs_by_name(f"reminder_{user.id}_{order_id}")
+    for job in current_jobs:
+        job.schedule_removal()
+    
+    timeout_jobs = context.job_queue.get_jobs_by_name(f"timeout_{user.id}_{order_id}")
+    for job in timeout_jobs:
+        job.schedule_removal()
 
     forwarded = await context.bot.forward_message(
         chat_id=ADMIN_GROUP_ID,
@@ -673,7 +679,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=forwarded.message_id,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("👨‍💻 Prise en charge", callback_data=f"take_charge_{user.id}")],
-            [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{total_price}"),
+            [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{user.id}_{order_id}_{total_price}"),
              InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{user.id}")]
         ])
     )
@@ -735,8 +741,6 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     ]
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
-# --- CALLBACKS ---
-
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -757,7 +761,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 kb_rows.append([InlineKeyboardButton(f"❌ #{item_id} - {data['name']} (Vendu)", callback_data="noop")])
             else:
                 status = f"• {data['taille']} | {data['etat']} | {data['prix']} € ({data['poids']}g)"
-                kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
+                kb_rows.append([InlineKeyboardButton(f"➕ #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
             text += f"#{item_id} - {data['name']}\n    {status}\n\n"
 
         kb_rows.append([InlineKeyboardButton("🛒 Voir mon panier", callback_data="show_cart")])
@@ -898,7 +902,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if data["taille"].upper() == selected_size.upper():
                 found = True
                 if data["available"]:
-                    kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
+                    kb_rows.append([InlineKeyboardButton(f"➕ #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
                     text += f"#{item_id} - {data['name']} | {data['etat']} | {data['prix']} €\n\n"
                 else:
                     text += f"#{item_id} - {data['name']} (Vendu)\n\n"
@@ -980,20 +984,48 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         parts = query.data.split("_")
         action = parts[0]
-        target_uid = int(parts[2])
-
+        
         if action == "take":
+            target_uid = int(parts[2])
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("👨‍💻 Pris en charge par Admin", callback_data="noop")],
-                [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{target_uid}_0"),
+                [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{target_uid}_0_0"),
                  InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_uid}")]
             ]))
             await context.bot.send_message(chat_id=target_uid, text="👨‍💻 Un administrateur a pris en charge ton reçu et vérifie ton paiement.")
+            
         elif action == "confirm":
+            target_uid = int(parts[2])
+            order_id = int(parts[3])
+            total_price = float(parts[4])
+
+            conn = sqlite3.connect("shop.db")
+            cursor = conn.cursor()
+            cursor.execute("UPDATE orders SET status = 'Validé' WHERE order_id = ?", (order_id,))
+            cursor.execute("SELECT username FROM users WHERE user_id = ?", (target_uid,))
+            urow = cursor.fetchone()
+            client_username = urow[0] if urow and urow[0] else "Client"
+            conn.commit()
+            conn.close()
+
+            # Sécurité supplémentaire : s'assurer que les rappels s'arrêtent bien aussi ici
+            for jname in [f"reminder_{target_uid}_{order_id}", f"timeout_{target_uid}_{order_id}"]:
+                for job in context.job_queue.get_jobs_by_name(jname):
+                    job.schedule_removal()
+
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Paiement Validé", callback_data="noop")]
+                [InlineKeyboardButton("✅ Paiement Validé & Facture envoyée", callback_data="noop")]
             ]))
+            
             await context.bot.send_message(chat_id=target_uid, text="✅ Paiement validé avec succès ! Ta commande est en cours de préparation pour l'expédition.")
+            
+            pdf_buffer = generate_invoice_pdf(order_id, client_username, target_uid, "Articles divers / WebApp", "Standard", total_price)
+            await context.bot.send_document(
+                chat_id=target_uid,
+                document=pdf_buffer,
+                filename=f"Facture_IDF_Running_Shop_{order_id}.pdf",
+                caption="📄 Voici la facture officielle de ta commande."
+            )
             
             add_points(target_uid, 10)
             ref_id = give_referral_reward(target_uid)
@@ -1002,11 +1034,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_message(chat_id=ref_id, text="🎁 Ton filleul a validé sa commande ! Tu gagnes un coupon de réduction de -5 €.")
                 except Exception:
                     pass
+                    
         elif action == "refuse":
+            target_uid = int(parts[2])
             await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("❌ Paiement Refusé", callback_data="noop")]
             ]))
-            await context.app.bot.send_message(chat_id=target_uid, text="❌ Ton reçu a été refusé par l'administration. Merci de contacter le support pour plus d'informations.")
+            await context.bot.send_message(chat_id=target_uid, text="❌ Ton reçu a été refusé par l'administration. Merci de contacter le support pour plus d'informations.")
 
     elif query.data == "noop":
         pass
