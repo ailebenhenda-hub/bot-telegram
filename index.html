@@ -284,9 +284,7 @@
     </div>
 
     <div class="cart-modal" id="cartModal">
-        <div class="cart-content" id="cartContentArea">
-            <!-- Injecté dynamiquement par openCartModal() -->
-        </div>
+        <div class="cart-content" id="cartContentArea"></div>
     </div>
 
     <script>
@@ -534,7 +532,7 @@
 
             const user = tg.initDataUnsafe?.user;
             const username = user?.username ? `@${user.username}` : (user?.first_name || "Client WebApp");
-            const telegramId = user?.id || 0;
+            const telegramId = user?.id ? Number(user.id) : 0;
             const calc = calculateTotals();
             
             let itemsSummary = cart.map(id => {
@@ -581,7 +579,7 @@
                             })
                         });
                     } catch (tgErr) {
-                        console.log("Notification Telegram envoyée.", tgErr);
+                        console.log("Erreur notif Telegram", tgErr);
                     }
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
