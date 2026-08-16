@@ -347,6 +347,31 @@ async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
+async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    job_data = context.job.data
+    user_id = job_data["user_id"]
+    order_id = job_data["order_id"]
+    
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM orders WHERE order_id = ? AND user_id = ?", (order_id, user_id))
+    res = cursor.fetchone()
+    conn.close()
+    
+    if res and res[0] == 'En attente de paiement':
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="⚠️ **RAPPEL IMPORTANT :** Tu n'as pas encore envoyé la photo de ton reçu de paiement pour valider ta commande !\n\n📸 Envoie ton reçu directement ici dans le chat dès que possible.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)],
+                    [InlineKeyboardButton("💬 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
 def get_main_keyboard(user_id):
     vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
     keyboard = [
@@ -441,7 +466,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tracking = context.args[1]
         tracking_link = f"{LAPOSTE_TRACKING_URL}{tracking}"
 
-        # 1. Mettre à jour dans Supabase
         try:
             resp = requests.get(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
@@ -457,7 +481,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"Erreur Supabase suivi : {e}")
 
-        # 2. Mettre à jour dans SQLite (Correction de la syntaxe SQL sans ORDER BY direct)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute(
@@ -467,7 +490,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
 
-        # Envoyer le message au client avec le lien cliquable vers La Poste
         await context.bot.send_message(
             chat_id=target_id, 
             text=f"🚚 **Bonne nouvelle ! Ton colis a été expédié.**\n\nNuméro de suivi : `{tracking}`\n\n👉 [Clique ici pour suivre ton colis sur La Poste]({tracking_link})",
@@ -618,7 +640,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     shipping_info = "Non spécifié"
     found_order = False
 
-    # 1. Priorité à la Web App (Supabase) - Recherche la dernière commande avec le statut 'nouveau'
     try:
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&statut=eq.nouveau&order=id.desc&limit=1",
@@ -635,7 +656,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Erreur Supabase dans handle_photo : {e}")
 
-    # 2. Si rien dans Supabase, chercher dans SQLite
     if not found_order:
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -678,6 +698,63 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text("📸 Reçu bien transmis aux admins ! Vérification en cours...")
 
+async def refresh_cart_display(query, user_id, u_data, catalog):
+    cart_items = get_cart(user_id)
+    if not cart_items:
+        await query.edit_message_text(
+            "🛒 **Ton panier est vide.**\n\nAjoute des articles depuis le catalogue ou la Web App !",
+            reply_markup=get_main_keyboard(user_id),
+            parse_mode="Markdown"
+        )
+        return
+
+    text = "🛒 **TON PANIER ACTUEL**\n\n"
+    total = 0
+    for item_id in cart_items:
+        if item_id in catalog:
+            it = catalog[item_id]
+            text += f"• **#{item_id}** - {it['name']} ({it['taille']} | {it['etat']}) : **{it['prix']} €**\n"
+            total += it['prix']
+
+    nb_items = len(cart_items)
+    current_delivery = delivery_choices.get(user_id, "gare_proche")
+
+    if current_delivery == "colissimo":
+        total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items if item_id in catalog)
+        shipping = calculate_colissimo_shipping(total_weight)
+        if total >= 170:
+            shipping = 0
+    else:
+        shipping_costs = {"gare_proche": 5, "gare_moyenne": 10, "gare_eloignee": 15}
+        shipping = shipping_costs.get(current_delivery, 5)
+
+    discount = 0
+    if nb_items == 2 and total > 70:
+        discount = 5
+    elif nb_items == 3 and total > 90:
+        discount = 10
+    elif nb_items == 4 and total > 110:
+        discount = 15
+    elif nb_items >= 5 and total > 130:
+        discount = 20
+
+    final_total = max(0, total + shipping - discount)
+
+    text += f"\n📦 Articles : {nb_items} | Sous-total : {total} €"
+    text += f"\n🚚 Livraison ({current_delivery}) : +{shipping} €"
+    if discount > 0:
+        text += f"\n🎁 Remise paliers : -{discount} €"
+    text += f"\n\n💰 **TOTAL FINAL : {final_total} €**"
+
+    kb = [
+        [InlineKeyboardButton("🚆 Livraison Gares IDF", callback_data="set_del_gare_proche"),
+         InlineKeyboardButton("📦 Colissimo", callback_data="set_del_colissimo")],
+        [InlineKeyboardButton("✅ Valider et Passer la Commande", callback_data="checkout_cart")],
+        [InlineKeyboardButton("🗑️ Vider le Panier", callback_data="clear_cart")],
+        [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+    ]
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+
 # --- CALLBACKS ---
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -715,7 +792,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("addcart_"):
         item_id = query.data.split("_")[1]
-        if catalog[item_id]["available"] and item_id not in reservations:
+        if item_id in catalog and catalog[item_id]["available"] and item_id not in reservations:
             add_to_cart(user_id, item_id)
             await query.answer(f"✅ Article #{item_id} ajouté au panier !", show_alert=True)
         else:
@@ -742,12 +819,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Ton panier est vide.", show_alert=True)
             return
         
-        total = sum(catalog[item_id]['prix'] for item_id in cart_items)
+        total = sum(catalog[item_id]['prix'] for item_id in cart_items if item_id in catalog)
         nb_items = len(cart_items)
         current_delivery = delivery_choices.get(user_id, "gare_proche")
         
         if current_delivery == "colissimo":
-            total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
+            total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items if item_id in catalog)
             shipping = calculate_colissimo_shipping(total_weight)
             if total >= 170:
                 shipping = 0
@@ -766,7 +843,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             discount = 20
 
         final_total = max(0, total + shipping - discount)
-        items_names = ", ".join([catalog[i]['name'] for i in cart_items])
+        items_names = ", ".join([catalog[i]['name'] for i in cart_items if i in catalog])
 
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -774,15 +851,32 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "INSERT INTO orders (user_id, items_str, total_price, delivery_mode, status, date) VALUES (?, ?, ?, ?, 'En attente de paiement', ?)",
             (user_id, items_names, final_total, current_delivery, datetime.now().strftime("%Y-%m-%d %H:%M"))
         )
+        order_id = cursor.lastrowid
         conn.commit()
         conn.close()
 
         clear_cart(user_id)
+        
+        if context.job_queue:
+            context.job_queue.run_once(
+                send_reminder_job,
+                when=600,
+                data={"user_id": user_id, "order_id": order_id},
+                name=f"reminder_{user_id}_{order_id}"
+            )
+
+        # Si le mode de livraison choisi est une gare IDF, on met le lien du vendeur au lieu de Revolut
+        if current_delivery != "colissimo":
+            pay_or_contact_button = InlineKeyboardButton("📲 Contacter le vendeur pour la remise", url=f"https://t.me/{SELLER_USERNAME}")
+        else:
+            pay_or_contact_button = InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)
+
         await query.edit_message_text(
             text=f"✅ **Commande enregistrée !**\n\nTotal à régler : **{final_total} €**\n"
-                 f"Veuillez effectuer le virement Revolut direct, puis envoyez la photo de votre reçu ici dans le chat.",
+                 f"🔴 **ATTENTION : N'oublie pas d'envoyer la photo de ton reçu de paiement directement ici dans le chat pour valider ta commande !**",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)],
+                [pay_or_contact_button],
+                [InlineKeyboardButton("💬 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")],
                 [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
             ]),
             parse_mode="Markdown"
@@ -804,253 +898,145 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb_rows = []
         found = False
         for item_id, data in catalog.items():
-            if data["taille"].upper() == selected_size and data["available"] and item_id not in reservations:
+            if data["taille"].upper() == selected_size.upper():
                 found = True
-                text += f"#{item_id} - {data['name']} | {data['prix']} €\n\n"
-                kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id}", callback_data=f"addcart_{item_id}")])
+                if data["available"]:
+                    kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
+                    text += f"#{item_id} - {data['name']} | {data['etat']} | {data['prix']} €\n\n"
+                else:
+                    text += f"#{item_id} - {data['name']} (Vendu)\n\n"
         if not found:
-            text += "Aucun article disponible.\n\n"
-        kb_rows.append([InlineKeyboardButton("🔙 Retour Catalogue", callback_data="show_catalog")])
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
+            text += "Aucun article disponible pour cette taille.\n\n"
+        kb_rows.append([InlineKeyboardButton("🔍 Choisir une autre taille", callback_data="filter_size")])
+        kb_rows.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows), parse_mode="Markdown")
 
     elif query.data == "show_orders":
-        text = "📦 **TES COMMANDES** :\n\n"
-        has_orders = False
-
-        # 1. Récupérer depuis Supabase (Web App)
-        try:
-            resp = requests.get(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user_id}&order=id.desc",
-                headers=SUPABASE_HEADERS
-            )
-            if resp.ok:
-                supabase_orders = resp.json()
-                for so in supabase_orders:
-                    has_orders = True
-                    date_str = so.get("created_at", "Récemment")[:10]
-                    text += f"• WebApp Cmd #{so.get('id')} ({date_str}) - Statut : {so.get('statut')} | Total : {so.get('total_amount')}€\n  {so.get('items_summary')}\n\n"
-        except Exception as e:
-            logging.error(f"Erreur lecture commandes Supabase : {e}")
-
-        # 2. Récupérer depuis SQLite (Telegram)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
-        cursor.execute("SELECT order_id, items_str, total_price, delivery_mode, status, tracking_num, date FROM orders WHERE user_id = ?", (user_id,))
-        sqlite_orders = cursor.fetchall()
+        cursor.execute("SELECT order_id, items_str, total_price, delivery_mode, status, tracking_num, date FROM orders WHERE user_id = ? ORDER BY order_id DESC LIMIT 5", (user_id,))
+        orders = cursor.fetchall()
         conn.close()
 
-        for o in sqlite_orders:
-            has_orders = True
-            text += f"• Telegram Cmd #{o[0]} ({o[6]}) - {o[4]} | Total : {o[2]}€\n  {o[1]}\n\n"
+        if not orders:
+            await query.edit_message_text("📦 Tu n'as pas encore passé de commande.", reply_markup=get_main_keyboard(user_id))
+            return
 
-        if not has_orders:
-            text = "📦 Aucune commande enregistrée."
+        text = "📦 **TES DERNIÈRES COMMANDES**\n\n"
+        for o in orders:
+            oid, items, price, mode, status, tracking, date = o
+            text += f"• **Cmd #{oid}** ({date})\n  Articles : {items}\n  Total : {price}€ | Statut : *{status}*\n"
+            if tracking:
+                text += f"  Suivi : `{tracking}` ([Lien]({LAPOSTE_TRACKING_URL}{tracking}))\n"
+            text += "\n"
 
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]), parse_mode="Markdown")
+        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown", disable_web_page_preview=True)
 
     elif query.data == "show_referral":
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-        text = f"🤝 **PARRAINAGE (-5 €)**\n\nLien :\n`{ref_link}`\n\nGagne -5 € si ton filleul commande sous 7 jours !"
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]), parse_mode="Markdown")
+        text = (
+            f"🤝 **PROGRAMME DE PARRAINAGE**\n\n"
+            f"Partage ton lien unique avec tes amis. S'ils passent une commande sous 7 jours, ils déclenchent ta récompense de **-5 €** !\n\n"
+            f"🔗 Ton lien :\n`{ref_link}`"
+        )
+        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
     elif query.data == "show_points":
-        await query.edit_message_text(f"⭐ Points fidélité : **{u_data['points']} pts**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]), parse_mode="Markdown")
+        text = f"⭐ **PROGRAMME FIDÉLITÉ**\n\nTu possèdes actuellement **{u_data['points']} points** fidélité.\nContinue tes achats pour gagner plus d'avantages !"
+        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
     elif query.data == "size_guide":
-        await query.edit_message_text("📏 Guide des tailles standard Nike.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
-
-    elif query.data == "click_and_collect_info":
-        await query.edit_message_text("🤝 Livraison en Gares IDF (mains propres) : Forfaits fixes (5€, 10€ ou 15€ selon la distance).", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
+        text = (
+            "📏 **GUIDE DES TAILLES**\n\n"
+            "• **S** : Idéal pour 1m60 - 1m70 (Coupe ajustée running)\n"
+            "• **M** : Idéal pour 1m70 - 1m80\n"
+            "• **L** : Idéal pour 1m80 - 1m90+\n\n"
+            "N'hésite pas à contacter le vendeur si tu as un doute !"
+        )
+        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
     elif query.data == "toggle_vip_status":
-        toggle_vip(user_id)
-        await query.answer("Statut VIP mis à jour.", show_alert=True)
+        status = toggle_vip(user_id)
+        state_text = "inscrit aux" if status else "désinscrit des"
+        await query.answer(f"Tu es désormais {state_text} VIP Drops !", show_alert=True)
         await query.edit_message_text("Menu Principal :", reply_markup=get_main_keyboard(user_id))
 
-    elif query.data.startswith("take_charge_"):
-        target_id = int(query.data.split("_")[2])
-        admin_name = query.from_user.first_name
-        await query.edit_message_text(
-            text=f"{query.message.text}\n\n👨‍💻 Pris en charge par {admin_name}",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{target_id}_0"),
-                 InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_id}")]
-            ])
+    elif query.data == "click_and_collect_info":
+        text = (
+            "🤝 **LIVRAISON GARES IDF (Mains Propres)**\n\n"
+            "Forfaits fixes par zone (sans poids) :\n"
+            "• Gare proche : 5 €\n"
+            "• Gare moyenne : 10 €\n"
+            "• Gare éloignée : 15 €\n\n"
+            "Contacte le vendeur pour convenir d'un rendez-vous en gare !"
         )
+        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
-    elif query.data.startswith("confirm_pay_"):
+    elif query.data.startswith("confirm_pay_") or query.data.startswith("refuse_pay_") or query.data.startswith("take_charge_"):
+        if query.message.chat.id != ADMIN_GROUP_ID:
+            return
         parts = query.data.split("_")
-        target_id = int(parts[2])
-        fallback_price = float(parts[3]) if len(parts) > 3 else 0.0
+        action = parts[0]
+        target_uid = int(parts[2])
 
-        items_summary = "Articles Web App"
-        delivery_mode = "Standard"
-        final_price = fallback_price
-        ord_id = 0
-
-        # 1. Mettre à jour Supabase
-        try:
-            resp = requests.get(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau&order=id.desc&limit=1",
-                headers=SUPABASE_HEADERS
-            )
-            if resp.ok and resp.json():
-                latest = resp.json()[0]
-                items_summary = latest.get("items_summary", items_summary)
-                final_price = float(latest.get("total_amount", fallback_price))
-                delivery_mode = latest.get("shipping", "Standard")
-                ord_id = latest.get("id", 0)
-
-            requests.patch(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
-                headers=SUPABASE_HEADERS,
-                json={"statut": "Payé"}
-            )
-        except Exception as e:
-            logging.error(f"Erreur Supabase validation : {e}")
-
-        # 2. Vérifier aussi dans SQLite
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
-            (target_id,)
-        )
-        ord_data = cursor.fetchone()
-        if ord_data:
-            ord_id, items_str, final_price, delivery_mode = ord_data
-            cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
-            conn.commit()
-        conn.close()
-
-        add_points(target_id, int(final_price))
-        referrer_id = give_referral_reward(target_id)
-        if referrer_id:
-            try:
-                await context.bot.send_message(chat_id=referrer_id, text="🎉 Ton filleul a commandé dans les 7 jours ! Tu gagnes -5 € !")
-            except Exception:
-                pass
-
-        try:
-            user_obj = await context.bot.get_chat(target_id)
-            client_name = user_obj.first_name or "Client"
-            pdf_buffer = generate_invoice_pdf(ord_id, client_name, target_id, items_summary, delivery_mode, final_price)
-            await context.bot.send_document(
-                chat_id=target_id,
-                document=pdf_buffer,
-                filename=f"Facture_IDF_Running_Shop_{ord_id}.pdf",
-                caption="📄 Voici la facture officielle de votre commande chez Shvppeur Corp !"
-            )
-        except Exception as err:
-            logging.error(f"Erreur envoi facture PDF client : {err}")
-
-        await query.edit_message_text(
-            text=f"{query.message.text}\n\n✅ STATUT : Paiement validé & Facture envoyée par {query.from_user.first_name}"
-        )
-        await context.bot.send_message(chat_id=target_id, text="✅ Paiement validé avec succès ! Ta commande est confirmée et ta facture t'a été envoyée ci-dessus.")
-
-    elif query.data.startswith("refuse_pay_"):
-        target_id = int(query.data.split("_")[2])
-        
-        try:
-            requests.patch(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
-                headers=SUPABASE_HEADERS,
-                json={"statut": "Refusé"}
-            )
-        except Exception as e:
-            logging.error(f"Erreur update Supabase refus : {e}")
-
-        await query.edit_message_text(
-            text=f"{query.message.text}\n\n❌ STATUT : Paiement refusé par {query.from_user.first_name}"
-        )
-        await context.bot.send_message(chat_id=target_id, text="❌ Reçu refusé par l'administration.")
+        if action == "take":
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("👨‍💻 Pris en charge par Admin", callback_data="noop")],
+                [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{target_uid}_0"),
+                 InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_uid}")]
+            ]))
+            await context.bot.send_message(chat_id=target_uid, text="👨‍💻 Un administrateur a pris en charge ton reçu et vérifie ton paiement.")
+        elif action == "confirm":
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Paiement Validé", callback_data="noop")]
+            ]))
+            await context.bot.send_message(chat_id=target_uid, text="✅ **Paiement validé avec succès !** Ta commande est en cours de préparation pour l'expédition.", parse_mode="Markdown")
+            
+            add_points(target_uid, 10)
+            ref_id = give_referral_reward(target_uid)
+            if ref_id:
+                try:
+                    await context.bot.send_message(chat_id=ref_id, text="🎁 Ton filleul a validé sa commande ! Tu gagnes un coupon de réduction de **-5 €**.", parse_mode="Markdown")
+                except Exception:
+                    pass
+        elif action == "refuse":
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Paiement Refusé", callback_data="noop")]
+            ]))
+            await context.app.bot.send_message(chat_id=target_uid, text="❌ Ton reçu a été refusé par l'administration. Merci de contacter le support pour plus d'informations.")
 
     elif query.data == "noop":
         pass
 
-async def refresh_cart_display(query, user_id, u_data, catalog):
-    cart_items = get_cart(user_id)
-    if not cart_items:
-        text = "🛒 Ton panier est vide."
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📦 Voir le catalogue", callback_data="show_catalog")]])
-    else:
-        current_delivery = delivery_choices.get(user_id, "gare_proche")
-        text = "🛒 TON PANIER :\n\n"
-        total = 0
-        nb_items = len(cart_items)
-        for item_id in cart_items:
-            item = catalog[item_id]
-            text += f"• #{item_id} - {item['name']} : {item['prix']} € ({item['poids']}g)\n"
-            total += item['prix']
-        
-        if current_delivery == "colissimo":
-            total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
-            shipping = calculate_colissimo_shipping(total_weight)
-            if total >= 170:
-                shipping = 0
-        else:
-            shipping_costs = {
-                "gare_proche": 5,
-                "gare_moyenne": 10,
-                "gare_eloignee": 15
-            }
-            shipping = shipping_costs.get(current_delivery, 5)
-
-        discount = 0
-        if nb_items == 2 and total > 70:
-            discount = 5
-        elif nb_items == 3 and total > 90:
-            discount = 10
-        elif nb_items == 4 and total > 110:
-            discount = 15
-        elif nb_items >= 5 and total > 130:
-            discount = 20
-
-        final_total = max(0, total + shipping - discount)
-
-        text += f"\n• Sous-total : {total} €\n"
-        text += f"• Livraison ({current_delivery}) : +{shipping} €\n"
-        if discount > 0:
-            text += f"• Remise dégressive ({nb_items} art.) : -{discount} €\n"
-        text += f"💰 TOTAL : {final_total} €"
-
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🚂 Gare IDF Proche (5€)", callback_data="set_del_gare_proche"),
-             InlineKeyboardButton("🚂 Gare IDF Moyenne (10€)", callback_data="set_del_gare_moyenne")],
-            [InlineKeyboardButton("🚂 Gare IDF Lointaine (15€)", callback_data="set_del_gare_eloignee")],
-            [InlineKeyboardButton("📦 Colissimo (Calcul au poids / Gratuit dès 170€)", callback_data="set_del_colissimo")],
-            [InlineKeyboardButton("✅ Valider et Payer", callback_data="checkout_cart")],
-            [InlineKeyboardButton("🗑️ Vider", callback_data="clear_cart"),
-             InlineKeyboardButton("📦 Catalogue", callback_data="show_catalog")]
-        ])
-    
-    await query.edit_message_text(text=text, reply_markup=kb)
-
 def main():
-    if not TELEGRAM_TOKEN:
-        return
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    application.job_queue.run_repeating(check_reservations_job, interval=10, first=10)
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("vendu", admin_vendu))
-    application.add_handler(CommandHandler("resto", admin_resto))
-    application.add_handler(CommandHandler("suivi", admin_suivi))
-    application.add_handler(CommandHandler("annonce", admin_annonce))
-    application.add_handler(CommandHandler("dropVIP", admin_dropvip))
-    application.add_handler(CommandHandler("ban", admin_ban))
-    application.add_handler(CommandHandler("unban", admin_unban))
-    application.add_handler(CommandHandler("points", admin_points))
-    application.add_handler(CommandHandler("facture", admin_facture))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("vendu", admin_vendu))
+    app.add_handler(CommandHandler("resto", admin_resto))
+    app.add_handler(CommandHandler("suivi", admin_suivi))
+    app.add_handler(CommandHandler("annonce", admin_annonce))
+    app.add_handler(CommandHandler("dropVIP", admin_dropvip))
+    app.add_handler(CommandHandler("ban", admin_ban))
+    app.add_handler(CommandHandler("unban", admin_unban))
+    app.add_handler(CommandHandler("points", admin_points))
+    app.add_handler(CommandHandler("facture", admin_facture))
 
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(handle_callback))
 
-    print("🤖 Bot démarré avec succès...")
-    application.run_polling()
+    if app.job_queue:
+        app.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
+
+    print("🤖 Bot démarré avec succès !")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
