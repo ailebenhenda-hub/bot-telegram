@@ -834,16 +834,33 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(parts[2])
         fallback_price = float(parts[3]) if len(parts) > 3 else 0.0
 
-        # Mettre à jour Supabase (archiver la commande en statut 'payé')
+        items_summary = "Articles Web App"
+        delivery_mode = "Standard"
+        final_price = fallback_price
+        ord_id = 0
+
+        # 1. Tenter de récupérer depuis Supabase en priorité
         try:
+            resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau&order=id.desc&limit=1",
+                headers=SUPABASE_HEADERS
+            )
+            if resp.ok and resp.json():
+                latest = resp.json()[0]
+                items_summary = latest.get("items_summary", items_summary)
+                final_price = float(latest.get("total_amount", fallback_price))
+                delivery_mode = latest.get("shipping", "Standard")
+                ord_id = latest.get("id", 0)
+
             requests.patch(
                 f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&statut=eq.nouveau",
                 headers=SUPABASE_HEADERS,
                 json={"statut": "payé"}
             )
         except Exception as e:
-            logging.error(f"Erreur update Supabase validation : {e}")
+            logging.error(f"Erreur Supabase validation : {e}")
 
+        # 2. Vérifier aussi dans SQLite (si commande direct Telegram)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute(
@@ -851,17 +868,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (target_id,)
         )
         ord_data = cursor.fetchone()
-        
         if ord_data:
             ord_id, items_str, final_price, delivery_mode = ord_data
             cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
-        else:
-            ord_id = 0
-            items_str = "Articles divers / WebApp"
-            final_price = fallback_price
-            delivery_mode = "Standard"
-
-        conn.commit()
+            conn.commit()
         conn.close()
 
         add_points(target_id, int(final_price))
@@ -875,7 +885,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             user_obj = await context.bot.get_chat(target_id)
             client_name = user_obj.first_name or "Client"
-            pdf_buffer = generate_invoice_pdf(ord_id, client_name, target_id, items_str, delivery_mode, final_price)
+            pdf_buffer = generate_invoice_pdf(ord_id, client_name, target_id, items_summary, delivery_mode, final_price)
             await context.bot.send_document(
                 chat_id=target_id,
                 document=pdf_buffer,
