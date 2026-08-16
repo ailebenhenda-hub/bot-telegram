@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IDF Running Shop</title>
+    <!-- Chargement de la police Inter pour un style plus moderne et léché -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -12,33 +14,36 @@
             --card-border: rgba(255, 255, 255, 0.08);
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
-            --success: #34c759;
+            --success: #00ff66; /* Vert électrique plus dynamique */
             --danger: #ff453a;
+            --accent-glow: rgba(0, 255, 102, 0.15);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 14px;
+            padding: 16px;
             padding-bottom: 120px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 18px;
             padding-top: 10px;
         }
 
         h1 {
-            font-size: 24px;
-            font-weight: 900;
-            margin: 0 0 4px 0;
-            letter-spacing: 0.5px;
-            background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 26px;
+            font-weight: 800;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+        }
+
+        h1 span {
+            color: var(--success);
         }
 
         p.subtitle {
@@ -53,18 +58,19 @@
         .announcement-banner {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 14px;
+            border-radius: 16px;
+            padding: 14px 16px;
             text-align: center;
             font-size: 12px;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
             color: #d1d1d6;
             line-height: 1.4;
+            backdrop-filter: blur(10px);
         }
 
         .search-box {
             width: 100%;
-            padding: 13px 16px;
+            padding: 14px 16px;
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 14px;
@@ -73,13 +79,18 @@
             margin-bottom: 12px;
             box-sizing: border-box;
             outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-box:focus {
+            border-color: var(--success);
         }
 
         .filter-chips {
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            margin-bottom: 16px;
+            margin-bottom: 18px;
             padding-bottom: 4px;
             scrollbar-width: none;
         }
@@ -90,18 +101,20 @@
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             color: var(--secondary-text);
-            padding: 7px 16px;
+            padding: 8px 16px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
+            transition: all 0.2s;
         }
 
         .chip.active {
-            background-color: #ffffff;
+            background-color: var(--success);
             color: #000000;
-            border-color: #ffffff;
+            border-color: var(--success);
+            font-weight: 700;
         }
 
         .catalog-grid {
@@ -120,10 +133,16 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            transition: transform 0.2s;
+        }
+
+        .item-card:active {
+            transform: scale(0.98);
         }
 
         .item-info { flex-grow: 1; padding-right: 12px; }
-        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; }
+        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; letter-spacing: -0.2px; }
         
         .item-meta {
             display: flex;
@@ -133,8 +152,8 @@
             margin-bottom: 8px;
         }
 
-        .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; color: #d1d1d6; }
-        .item-price { font-weight: 900; font-size: 16px; color: #ffffff; }
+        .badge { background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; color: #d1d1d6; font-weight: 500; }
+        .item-price { font-weight: 800; font-size: 16px; color: #ffffff; }
 
         @keyframes popClick {
             0% { transform: scale(1); }
@@ -146,17 +165,17 @@
             background-color: #ffffff;
             color: #000000;
             border: none;
-            border-radius: 10px;
-            padding: 10px 16px;
+            border-radius: 12px;
+            padding: 10px 18px;
             font-weight: 700;
             font-size: 12px;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
             white-space: nowrap;
         }
 
         .add-btn.pop-anim { animation: popClick 0.3s ease-in-out; }
-        .add-btn.added { background-color: var(--success); color: #ffffff; }
+        .add-btn.added { background-color: var(--success); color: #000000; }
         
         .add-btn.sold-out {
             background-color: rgba(255,255,255,0.05);
@@ -176,18 +195,19 @@
         }
 
         .checkout-btn {
-            background-color: #ffffff;
+            background-color: var(--success);
             color: #000000;
             border: none;
             width: 100%;
             padding: 14px;
-            border-radius: 12px;
+            border-radius: 14px;
             font-weight: 800;
             font-size: 14px;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 20px var(--accent-glow);
         }
 
         .cart-modal {
@@ -214,17 +234,17 @@
 
         .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
-        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 
         .cart-items-list { overflow-y: auto; max-height: 25vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px 14px; border-radius: 12px; font-size: 13px; border: 1px solid var(--card-border); }
         .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
 
         .shipping-section {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 12px;
+            border-radius: 14px;
+            padding: 14px;
             margin-bottom: 15px;
         }
         .shipping-section label {
@@ -239,24 +259,24 @@
             background: #1c1c1e;
             border: 1px solid var(--card-border);
             color: white;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 12px;
+            border-radius: 10px;
             font-size: 13px;
             outline: none;
         }
 
-        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 12px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
+        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 14px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 8px; }
         .summary-row { display: flex; justify-content: space-between; }
-        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
+        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px; }
 
-        .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; }
+        .validate-order-btn { background-color: var(--success); color: #000000; border: none; width: 100%; padding: 14px; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; box-shadow: 0 4px 20px var(--accent-glow); }
         .no-result { text-align: center; color: var(--secondary-text); font-size: 13px; padding: 20px; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>IDF RUNNING SHOP</h1>
+        <h1>IDF <span>RUNNING SHOP</span></h1>
         <p class="subtitle">Streetwear & Vêtements Running</p>
     </header>
 
