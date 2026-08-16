@@ -828,19 +828,37 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("confirm_pay_"):
         parts = query.data.split("_")
         target_id = int(parts[2])
+        fallback_price = float(parts[3]) if len(parts) > 3 else 0.0
 
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
+        
+        # 1. On cherche en priorité une commande 'En attente de paiement'
         cursor.execute(
             "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
             (target_id,)
         )
         ord_data = cursor.fetchone()
+        
         if ord_data:
             ord_id, items_str, final_price, delivery_mode = ord_data
             cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
         else:
-            ord_id, items_str, final_price, delivery_mode = (0, "Articles divers", 0.0, "Standard")
+            # 2. Si aucune commande 'En attente', on prend la toute dernière commande de la base
+            cursor.execute(
+                "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? ORDER BY order_id DESC LIMIT 1",
+                (target_id,)
+            )
+            ord_data_fallback = cursor.fetchone()
+            if ord_data_fallback:
+                ord_id, items_str, final_price, delivery_mode = ord_data_fallback
+                cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
+            else:
+                ord_id = 0
+                items_str = "Articles divers"
+                final_price = fallback_price
+                delivery_mode = "Standard"
+
         conn.commit()
         conn.close()
 
