@@ -1001,6 +1001,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             conn = sqlite3.connect("shop.db")
             cursor = conn.cursor()
+            
+            # Récupérer proprement les détails de la commande active de l'utilisateur
+            cursor.execute("SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_uid,))
+            ord_row = cursor.fetchone()
+            
+            if ord_row:
+                order_id = ord_row[0]
+                items_summary = ord_row[1]
+                total_price = ord_row[2]
+                delivery_mode = ord_row[3]
+            else:
+                items_summary = "Articles divers / WebApp"
+                delivery_mode = "Standard"
+
             cursor.execute("UPDATE orders SET status = 'Validé' WHERE order_id = ?", (order_id,))
             cursor.execute("SELECT username FROM users WHERE user_id = ?", (target_uid,))
             urow = cursor.fetchone()
@@ -1008,7 +1022,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
             conn.close()
 
-            # Sécurité supplémentaire : s'assurer que les rappels s'arrêtent bien aussi ici
+            # Sécurité : s'assurer que les rappels s'arrêtent bien
             for jname in [f"reminder_{target_uid}_{order_id}", f"timeout_{target_uid}_{order_id}"]:
                 for job in context.job_queue.get_jobs_by_name(jname):
                     job.schedule_removal()
@@ -1019,7 +1033,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_message(chat_id=target_uid, text="✅ Paiement validé avec succès ! Ta commande est en cours de préparation pour l'expédition.")
             
-            pdf_buffer = generate_invoice_pdf(order_id, client_username, target_uid, "Articles divers / WebApp", "Standard", total_price)
+            pdf_buffer = generate_invoice_pdf(order_id, client_username, target_uid, items_summary, delivery_mode, total_price)
             await context.bot.send_document(
                 chat_id=target_uid,
                 document=pdf_buffer,
