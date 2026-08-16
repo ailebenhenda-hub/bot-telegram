@@ -316,61 +316,84 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     buffer.seek(0)
     return buffer
 
-reservations = {}  
 known_users = set()
 delivery_choices = {}
 
-async def check_reservations_job(context: ContextTypes.DEFAULT_TYPE):
-    now = datetime.now()
-    for item_id, res in list(reservations.items()):
-        if not res.get("warned", False) and now >= res["expires"] - timedelta(minutes=2):
-            res["warned"] = True
-            try:
-                await context.bot.send_message(
-                    chat_id=res["user_id"],
-                    text=f"⏳ Plus que 2 minutes pour régler ton article #{item_id} avant qu'il ne soit remis en stock !"
-                )
-            except Exception:
-                pass
-        elif now >= res["expires"]:
-            del reservations[item_id]
-            conn = sqlite3.connect("shop.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
-            conn.commit()
-            conn.close()
-            try:
-                await context.bot.send_message(
-                    chat_id=res["user_id"],
-                    text=f"❌ Ta réservation pour l'article #{item_id} a expiré. Il est de nouveau disponible."
-                )
-            except Exception:
-                pass
-
-async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+# --- FONCTION DE RELANCE AUTO & EXPIRATION (3 MIN) ---
+async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
     user_id = job_data["user_id"]
     order_id = job_data["order_id"]
+    item_ids = job_data["item_ids"]
+
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM orders WHERE order_id = ? AND user_id = ?", (order_id, user_id))
+    res = cursor.fetchone()
     
+    if res and res[0] == 'En attente de paiement':
+        # Marquer la commande comme annulée
+        cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ?", (order_id,))
+        # Libérer les articles dans le catalogue
+        for i_id in item_ids:
+            cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
+        conn.commit()
+        conn.close()
+
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ **Délai dépassé !** Ta commande a été automatiquement annulée et les articles ont été remis en stock.",
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+    else:
+        conn.close()
+
+async def send_3min_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    job_data = context.job.data
+    user_id = job_data["user_id"]
+    order_id = job_data["order_id"]
+    item_ids = job_data["item_ids"]
+
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM orders WHERE order_id = ? AND user_id = ?", (order_id, user_id))
     res = cursor.fetchone()
     conn.close()
-    
+
     if res and res[0] == 'En attente de paiement':
+        # Texte de rappel en ROUGE (via balises HTML ou formatage texte alerte)
+        red_reminder_text = (
+            "🔴 **[RAPPEL URGENT]** 🔴\n\n"
+            "🚨 **N'oublie pas d'envoyer ton reçu de paiement pour finaliser ta commande !** 🚨\n"
+            "Si tu n'envoies pas ton reçu ou si tu ne valides pas, ta commande expirera et tes articles seront libérés pour les autres acheteurs."
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("📸 Envoyer le reçu / Finaliser", url=f"https://t.me/{SELLER_USERNAME}")],
+            [InlineKeyboardButton("❌ Annuler / Libérer l'article", callback_data=f"cancel_order_{order_id}_{'_'.join(item_ids)}")]
+        ]
+        
         try:
             await context.bot.send_message(
                 chat_id=user_id,
-                text="⚠️ **RAPPEL IMPORTANT :** Tu n'as pas encore envoyé la photo de ton reçu de paiement pour valider ta commande !\n\n📸 Envoie ton reçu directement ici dans le chat dès que possible.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)],
-                    [InlineKeyboardButton("💬 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")]
-                ]),
+                text=red_reminder_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
         except Exception:
             pass
+        
+        # Programmer la suppression définitive et la libération du stock 3 minutes après ce rappel (ou total 3 min depuis le début selon configuration)
+        # Ici on programme l'expiration totale 180 secondes après la commande initiale (ou on relance un timer)
+        context.job_queue.run_once(
+            payment_timeout_job,
+            when=180,  # 3 minutes supplémentaires ou ajusté selon le besoin exact
+            data={"user_id": user_id, "order_id": order_id, "item_ids": item_ids},
+            name=f"timeout_{user_id}_{order_id}"
+        )
 
 def get_main_keyboard(user_id):
     vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
@@ -449,8 +472,6 @@ async def admin_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
-    if item_id in reservations:
-        del reservations[item_id]
     conn.commit()
     conn.close()
     await update.message.reply_text(f"✅ L'article #{item_id} a été remis en stock !")
@@ -465,21 +486,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(context.args[0])
         tracking = context.args[1]
         tracking_link = f"{LAPOSTE_TRACKING_URL}{tracking}"
-
-        try:
-            resp = requests.get(
-                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
-                headers=SUPABASE_HEADERS
-            )
-            if resp.ok and resp.json():
-                cmd_id = resp.json()[0]["id"]
-                requests.patch(
-                    f"{SUPABASE_URL}/rest/v1/commandes?id=eq.{cmd_id}",
-                    headers=SUPABASE_HEADERS,
-                    json={"statut": "Expédié"}
-                )
-        except Exception as e:
-            logging.error(f"Erreur Supabase suivi : {e}")
 
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -621,7 +627,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         catalog = get_catalog_items()
         if item_id in catalog:
             item = catalog[item_id]
-            if item["available"] and item_id not in reservations:
+            if item["available"]:
                 add_to_cart(update.effective_user.id, item_id)
                 await update.message.reply_text(f"✅ Article #{item_id} ({item['name']} - {item['prix']}€) ajouté au panier !")
             else:
@@ -640,37 +646,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     shipping_info = "Non spécifié"
     found_order = False
 
-    try:
-        response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&statut=eq.nouveau&order=id.desc&limit=1",
-            headers=SUPABASE_HEADERS
-        )
-        if response.ok:
-            data = response.json()
-            if data:
-                latest_order = data[0]
-                items_summary = latest_order.get("items_summary", "Panier Web App")
-                total_price = float(latest_order.get("total_amount", 0.0))
-                shipping_info = latest_order.get("shipping", "Non spécifié")
-                found_order = True
-    except Exception as e:
-        logging.error(f"Erreur Supabase dans handle_photo : {e}")
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
+        (user.id,)
+    )
+    order = cursor.fetchone()
+    conn.close()
 
-    if not found_order:
-        conn = sqlite3.connect("shop.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
-            (user.id,)
-        )
-        order = cursor.fetchone()
-        conn.close()
-
-        if order:
-            items_summary = order[0]
-            total_price = float(order[1])
-            shipping_info = order[2]
-            found_order = True
+    if order:
+        items_summary = order[0]
+        total_price = float(order[1])
+        shipping_info = order[2]
+        found_order = True
 
     if not found_order:
         await update.message.reply_text("❌ Aucune commande en attente trouvée. Merci de contacter le support.")
@@ -772,12 +761,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "🔥 STOCK ACTUEL 🔥\n\n"
         kb_rows = []
         for item_id, data in catalog.items():
-            if not data["available"] and item_id not in reservations:
+            if not data["available"]:
                 status = "🔴 [VENDU]"
                 kb_rows.append([InlineKeyboardButton(f"❌ #{item_id} - {data['name']} (Vendu)", callback_data="noop")])
-            elif item_id in reservations:
-                status = "⏳ [RÉSERVÉ]"
-                kb_rows.append([InlineKeyboardButton(f"⏳ #{item_id} - {data['name']} (Réservé)", callback_data="noop")])
             else:
                 status = f"• {data['taille']} | {data['etat']} | {data['prix']} € ({data['poids']}g)"
                 kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
@@ -792,7 +778,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("addcart_"):
         item_id = query.data.split("_")[1]
-        if item_id in catalog and catalog[item_id]["available"] and item_id not in reservations:
+        if item_id in catalog and catalog[item_id]["available"]:
             add_to_cart(user_id, item_id)
             await query.answer(f"✅ Article #{item_id} ajouté au panier !", show_alert=True)
         else:
@@ -845,6 +831,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         final_total = max(0, total + shipping - discount)
         items_names = ", ".join([catalog[i]['name'] for i in cart_items if i in catalog])
 
+        # 1. Enregistrement de la commande
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute(
@@ -852,33 +839,57 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (user_id, items_names, final_total, current_delivery, datetime.now().strftime("%Y-%m-%d %H:%M"))
         )
         order_id = cursor.lastrowid
+        
+        # 2. Bloquer immédiatement les articles en stock (available = 0)
+        for item_id in cart_items:
+            cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
+        
         conn.commit()
         conn.close()
 
         clear_cart(user_id)
         
+        # 3. Programmer la relance automatique des 3 minutes et l'expiration
         if context.job_queue:
             context.job_queue.run_once(
-                send_reminder_job,
-                when=600,
-                data={"user_id": user_id, "order_id": order_id},
+                send_3min_reminder_job,
+                when=180,  # 3 minutes (180 secondes)
+                data={"user_id": user_id, "order_id": order_id, "item_ids": cart_items},
                 name=f"reminder_{user_id}_{order_id}"
             )
 
-        # Si le mode de livraison choisi est une gare IDF, on met le lien du vendeur au lieu de Revolut
         if current_delivery != "colissimo":
             pay_or_contact_button = InlineKeyboardButton("📲 Contacter le vendeur pour la remise", url=f"https://t.me/{SELLER_USERNAME}")
         else:
             pay_or_contact_button = InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)
 
         await query.edit_message_text(
-            text=f"✅ **Commande enregistrée !**\n\nTotal à régler : **{final_total} €**\n"
+            text=f"✅ **Commande enregistrée !** (Articles réservés pour 3 minutes)\n\nTotal à régler : **{final_total} €**\n"
                  f"🔴 **ATTENTION : N'oublie pas d'envoyer la photo de ton reçu de paiement directement ici dans le chat pour valider ta commande !**",
             reply_markup=InlineKeyboardMarkup([
                 [pay_or_contact_button],
                 [InlineKeyboardButton("💬 Contacter le vendeur", url=f"https://t.me/{SELLER_USERNAME}")],
                 [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
             ]),
+            parse_mode="Markdown"
+        )
+
+    elif query.data.startswith("cancel_order_"):
+        parts = query.data.split("_")
+        order_id = int(parts[2])
+        item_ids = parts[3:]
+
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ? AND user_id = ?", (order_id, user_id))
+        for i_id in item_ids:
+            cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
+        conn.commit()
+        conn.close()
+
+        await query.edit_message_text(
+            text="❌ **Commande annulée.** Les articles ont été libérés et remis en stock.",
+            reply_markup=get_main_keyboard(user_id),
             parse_mode="Markdown"
         )
 
@@ -1031,9 +1042,6 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
-
-    if app.job_queue:
-        app.job_queue.run_repeating(check_reservations_job, interval=30, first=10)
 
     print("🤖 Bot démarré avec succès !")
     app.run_polling()
