@@ -34,7 +34,8 @@ SUPABASE_KEY = "sb_publishable_OXqEOCgFVL4qbZUHK7DaKg_o6BzN8rK"
 SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
 }
 
 import logging
@@ -127,6 +128,17 @@ def init_db():
 
 init_db()
 
+# Synchronisation du stock avec Supabase
+def update_supabase_stock(item_id, available_status):
+    try:
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/catalog?item_id=eq.{item_id}",
+            headers=SUPABASE_HEADERS,
+            json={"available": 1 if available_status else 0}
+        )
+    except Exception as e:
+        print(f"Erreur synchro stock Supabase pour #{item_id}: {e}")
+
 def get_user(user_id, username=""):
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
@@ -176,7 +188,9 @@ def give_referral_reward(user_id):
         try:
             join_dt = datetime.strptime(join_date_str, "%Y-%m-%d %H:%M:%S")
             if datetime.now() <= join_dt + timedelta(days=7):
+                # CORRECTION PARRAINAGE : On donne la réduction de -5€ au PARRAIN et non au filleul
                 cursor.execute("UPDATE users SET discount_coupon = discount_coupon + 1, referred_by = -1 WHERE user_id = ?", (user_id,))
+                cursor.execute("UPDATE users SET discount_coupon = discount_coupon + 1 WHERE user_id = ?", (referrer_id,))
                 conn.commit()
                 conn.close()
                 return referrer_id
@@ -334,6 +348,7 @@ async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ?", (order_id,))
         for i_id in item_ids:
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
+            update_supabase_stock(i_id, True)  # Synchro Supabase stock remis
         conn.commit()
         conn.close()
 
@@ -422,7 +437,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = int(arg.split("_")[1])
                 success = set_referrer(user.id, referrer_id)
                 if success:
-                    await update.message.reply_text("🎁 Tu as rejoint le lien de parrainage ! Ton parrain remportera -5 € si tu valides une commande sous 7 jours.")
+                    await update.message.reply_text("🎁 Tu as rejoint le lien de parrainage ! Ton parrain remportera une réduction de -5 € si tu valides ta première commande sous 7 jours.")
             except ValueError:
                 pass
 
@@ -451,6 +466,7 @@ async def admin_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
     conn.commit()
     conn.close()
+    update_supabase_stock(item_id, False)  # Synchro Supabase
     await update.message.reply_text(f"🔒 L'article #{item_id} a été marqué comme vendu.")
 
 async def admin_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -464,6 +480,7 @@ async def admin_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
     conn.commit()
     conn.close()
+    update_supabase_stock(item_id, True)  # Synchro Supabase
     await update.message.reply_text(f"✅ L'article #{item_id} a été remis en stock !")
 
 async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -654,7 +671,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Aucune commande en attente trouvée. Merci de contacter le support.")
         return
 
-    # Annulation des tâches de rappel et de timeout en cours
     current_jobs = context.job_queue.get_jobs_by_name(f"reminder_{user.id}_{order_id}")
     for job in current_jobs:
         job.schedule_removal()
@@ -836,6 +852,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for item_id in cart_items:
             cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
+            update_supabase_stock(item_id, False)  # Synchro Supabase stock vendu
         
         conn.commit()
         conn.close()
@@ -875,6 +892,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ? AND user_id = ?", (order_id, user_id))
         for i_id in item_ids:
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
+            update_supabase_stock(i_id, True)  # Synchro Supabase stock remis
         conn.commit()
         conn.close()
 
@@ -939,7 +957,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         text = (
             f"🤝 PROGRAMME DE PARRAINAGE\n\n"
-            f"Partage ton lien unique avec tes amis. S'ils passent une commande sous 7 jours, ils déclenchent ta récompense de -5 € !\n\n"
+            f"Partage ton lien unique avec tes amis. S'ils passent une commande sous 7 jours, tu gagnes une réduction de -5 € !\n\n"
             f"🔗 Ton lien :\n{ref_link}"
         )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
@@ -1002,7 +1020,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn = sqlite3.connect("shop.db")
             cursor = conn.cursor()
             
-            # Récupérer proprement les détails de la commande active de l'utilisateur
             cursor.execute("SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1", (target_uid,))
             ord_row = cursor.fetchone()
             
@@ -1022,7 +1039,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
             conn.close()
 
-            # Sécurité : s'assurer que les rappels s'arrêtent bien
             for jname in [f"reminder_{target_uid}_{order_id}", f"timeout_{target_uid}_{order_id}"]:
                 for job in context.job_queue.get_jobs_by_name(jname):
                     job.schedule_removal()
