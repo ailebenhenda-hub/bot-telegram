@@ -26,6 +26,7 @@ except ValueError:
 SELLER_USERNAME = "idf_runningshop"
 REVOLUT_BASE = "https://revolut.me/shvppeur_corp"
 WEBAPP_URL = "https://ailebenhenda-hub.github.io/bot-telegram/"
+LAPOSTE_TRACKING_URL = "https://www.laposte.fr/outils/suivre-vos-envois?code="
 
 # Configuration Supabase
 SUPABASE_URL = "https://jzurawtfxwyinwzowpkx.supabase.co"
@@ -359,7 +360,7 @@ def get_main_keyboard(user_id):
         [InlineKeyboardButton("📏 Guide des Tailles", callback_data="size_guide"),
          InlineKeyboardButton(vip_btn_text, callback_data="toggle_vip_status")],
         [InlineKeyboardButton("🤝 Livraison Gares IDF", callback_data="click_and_collect_info"),
-         InlineKeyboardButton("💳 Revolut Direct", url=REVOLUT_BASE)],
+         InlineKeyboardButton("📦 Suivi de Colis", url=LAPOSTE_TRACKING_URL)],
         [InlineKeyboardButton("🛒 Vinted", url="https://www.vinted.fr/member/idf_runningshop"),
          InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/BW0Gzw9i")],
         [InlineKeyboardButton("💬 Avis & Retours", url="https://t.me/+q2HRbe-dBydlZWZk"),
@@ -433,19 +434,48 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
         return
     if len(context.args) < 2:
+        await update.message.reply_text("⚠️ Syntaxe : `/suivi ID_TELEGRAM NUMERO_SUIVI`", parse_mode="Markdown")
         return
     try:
         target_id = int(context.args[0])
         tracking = context.args[1]
+        tracking_link = f"{LAPOSTE_TRACKING_URL}{tracking}"
+        updated_in_supabase = False
+
+        # 1. Mettre à jour dans Supabase
+        try:
+            resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{target_id}&order=id.desc&limit=1",
+                headers=SUPABASE_HEADERS
+            )
+            if resp.ok and resp.json():
+                cmd_id = resp.json()[0]["id"]
+                patch_resp = requests.patch(
+                    f"{SUPABASE_URL}/rest/v1/commandes?id=eq.{cmd_id}",
+                    headers=SUPABASE_HEADERS,
+                    json={"statut": "Expédié"}
+                )
+                if patch_resp.ok:
+                    updated_in_supabase = True
+        except Exception as e:
+            logging.error(f"Erreur Supabase suivi : {e}")
+
+        # 2. Mettre à jour dans SQLite (secours)
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
         cursor.execute("UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' ORDER BY order_id DESC LIMIT 1", (tracking, target_id))
         conn.commit()
         conn.close()
-        await context.bot.send_message(chat_id=target_id, text=f"🚚 Colis expédié ! Suivi : {tracking}")
-        await update.message.reply_text(f"✅ Suivi enregistré pour #{target_id}.")
+
+        # Envoyer le message au client avec le lien cliquable vers La Poste
+        await context.bot.send_message(
+            chat_id=target_id, 
+            text=f"🚚 **Bonne nouvelle ! Ton colis a été expédié.**\n\nNuméro de suivi : `{tracking}`\n\n👉 [Clique ici pour suivre ton colis sur La Poste]({tracking_link})",
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text(f"✅ Suivi enregistré et envoyé à l'utilisateur #{target_id} avec succès.")
     except ValueError:
-        pass
+        await update.message.reply_text("❌ ID Telegram invalide.")
 
 async def admin_annonce(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
