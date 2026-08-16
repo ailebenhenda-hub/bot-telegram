@@ -319,7 +319,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
 
-# --- COMMANDES ADMIN COMPLÈTES ---
+# --- COMMANDES ADMIN ---
 
 async def admin_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_GROUP_ID:
@@ -470,7 +470,6 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Le montant doit être un nombre valide.")
         return
 
-    # Génération du PDF avec ReportLab
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     p.drawString(100, 750, "IDF RUNNING SHOP - FACTURE OFFICIELLE")
@@ -576,10 +575,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for item_id, data in catalog.items():
             if not data["available"] and item_id not in reservations:
                 status = "🔴 [VENDU]"
-                kb_rows.append([InlineKeyboardButton(f"❌ #{item_id} - {data['name']} (Vendu)", callback_data=f"noop")])
+                kb_rows.append([InlineKeyboardButton(f"❌ #{item_id} - {data['name']} (Vendu)", callback_data="noop")])
             elif item_id in reservations:
                 status = "⏳ [RÉSERVÉ]"
-                kb_rows.append([InlineKeyboardButton(f"⏳ #{item_id} - {data['name']} (Réservé)", callback_data=f"noop")])
+                kb_rows.append([InlineKeyboardButton(f"⏳ #{item_id} - {data['name']} (Réservé)", callback_data="noop")])
             else:
                 status = f"• {data['taille']} | {data['etat']} | {data['prix']} €"
                 kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
@@ -614,6 +613,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del delivery_choices[user_id]
         await query.answer("🗑️ Panier vidé.", show_alert=True)
         await query.edit_message_text("🛒 Ton panier a été vidé.", reply_markup=get_main_keyboard(user_id))
+
+    elif query.data == "checkout_cart":
+        cart_items = get_cart(user_id)
+        if not cart_items:
+            await query.answer("Ton panier est vide.", show_alert=True)
+            return
+        
+        total = sum(catalog[item_id]['prix'] for item_id in cart_items)
+        nb_items = len(cart_items)
+        current_delivery = delivery_choices.get(user_id, "gare_proche")
+        
+        shipping_costs = {"gare_proche": 5, "gare_moyenne": 10, "gare_eloignee": 15, "colissimo": 6}
+        shipping = shipping_costs.get(current_delivery, 5)
+
+        # Règle corrigée : -5€ par article SEULEMENT si >= 2 articles ET total >= 70€
+        discount = 0
+        if nb_items >= 2 and total >= 70:
+            discount = nb_items * 5
+
+        if total >= 170 and current_delivery == "colissimo":
+            shipping = 0
+
+        final_total = max(0, total + shipping - discount)
+        items_names = ", ".join([catalog[i]['name'] for i in cart_items])
+
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO orders (user_id, items_str, total_price, delivery_mode, status, date) VALUES (?, ?, ?, ?, 'En attente de paiement', ?)",
+            (user_id, items_names, final_total, current_delivery, datetime.now().strftime("%Y-%m-%d %H:%M"))
+        )
+        conn.commit()
+        conn.close()
+
+        clear_cart(user_id)
+        await query.edit_message_text(
+            text=f"✅ **Commande enregistrée !**\n\nTotal à régler : **{final_total} €**\n"
+                 f"Veuillez effectuer le virement Revolut direct ou via la Web App, puis envoyez la photo de votre reçu ici dans le chat.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Payer sur Revolut", url=REVOLUT_BASE)],
+                [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+            ]),
+            parse_mode="Markdown"
+        )
 
     elif query.data == "filter_size":
         text = "🔍 **Filtrer par taille** :\nSélectionne une taille :"
@@ -759,8 +802,9 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         }
         shipping = shipping_costs.get(current_delivery, 5)
 
+        # Règle de réduction : -5€ par article SEULEMENT si >= 2 articles ET total >= 70€
         discount = 0
-        if total >= 70 and nb_items >= 2:
+        if nb_items >= 2 and total >= 70:
             discount = nb_items * 5
 
         if total >= 170 and current_delivery == "colissimo":
