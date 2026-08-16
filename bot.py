@@ -268,7 +268,7 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
     p.drawString(50, 740, "SHVPPEUR CORP")
     p.setFont("Helvetica", 9)
     p.drawString(50, 725, "IDF Running Shop - Vêtements Streetwear & Running Second-Main")
-    p.drawString(50, 712, "Telegram : @idf_runningshop | Snapchat : @BW0Gzw9i")
+    p.drawString(50, 712, "Telegram : @idf_runningshop | Snapchat : idf_runningshop")
     
     p.setFont("Helvetica-Bold", 10)
     p.drawRightString(560, 740, f"FACTURE #{order_id}")
@@ -442,7 +442,8 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' ORDER BY order_id DESC LIMIT 1", (tracking, target_id))
         conn.commit()
         conn.close()
-        await context.bot.send_message(chat_id=target_id, text=f"🚚 Colis expédié ! Suivi : `{tracking}`", parse_mode="Markdown")
+        # Correction : suppression du parse_mode="Markdown" pour éviter le crash sur les caractères du suivi
+        await context.bot.send_message(chat_id=target_id, text=f"🚚 Colis expédié ! Suivi : {tracking}")
         await update.message.reply_text(f"✅ Suivi enregistré pour #{target_id}.")
     except ValueError:
         pass
@@ -937,7 +938,6 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
              InlineKeyboardButton("📦 Catalogue", callback_data="show_catalog")]
         ])
     
-    # Correction : pas de parse_mode="Markdown" ici pour éviter les crashs de caractères spéciaux
     await query.edit_message_text(text=text, reply_markup=kb)
 
 def main():
