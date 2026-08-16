@@ -442,7 +442,6 @@ async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET tracking_num = ?, status = 'Expédié' WHERE user_id = ? AND status != 'Annulé' ORDER BY order_id DESC LIMIT 1", (tracking, target_id))
         conn.commit()
         conn.close()
-        # Correction : suppression du parse_mode="Markdown" pour éviter le crash sur les caractères du suivi
         await context.bot.send_message(chat_id=target_id, text=f"🚚 Colis expédié ! Suivi : {tracking}")
         await update.message.reply_text(f"✅ Suivi enregistré pour #{target_id}.")
     except ValueError:
@@ -798,8 +797,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(query.data.split("_")[2])
         admin_name = query.from_user.first_name
         await query.edit_message_text(
-            text=f"{query.message.text}\n\n👨‍💻 **Pris en charge par {admin_name}**",
-            parse_mode="Markdown",
+            text=f"{query.message.text}\n\n👨‍💻 Pris en charge par {admin_name}",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("✅ Valider", callback_data=f"confirm_pay_{target_id}_0"),
                  InlineKeyboardButton("❌ Refuser", callback_data=f"refuse_pay_{target_id}")]
@@ -856,8 +854,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.error(f"Erreur envoi facture PDF client : {err}")
 
         await query.edit_message_text(
-            text=f"{query.message.text}\n\n✅ **STATUT : Paiement validé & Facture envoyée par {query.from_user.first_name}**",
-            parse_mode="Markdown"
+            text=f"{query.message.text}\n\n✅ STATUT : Paiement validé & Facture envoyée par {query.from_user.first_name}"
         )
         await context.bot.send_message(chat_id=target_id, text="✅ Paiement validé avec succès ! Ta commande est confirmée et ta facture t'a été envoyée ci-dessus.")
 
@@ -874,8 +871,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.error(f"Erreur update Supabase refus : {e}")
 
         await query.edit_message_text(
-            text=f"{query.message.text}\n\n❌ **STATUT : Paiement refusé par {query.from_user.first_name}**",
-            parse_mode="Markdown"
+            text=f"{query.message.text}\n\n❌ STATUT : Paiement refusé par {query.from_user.first_name}"
         )
         await context.bot.send_message(chat_id=target_id, text="❌ Reçu refusé par l'administration.")
 
