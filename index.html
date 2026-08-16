@@ -433,8 +433,6 @@
                 if (item) subtotal += item.prix;
             });
             
-            // CORRECTION DE LA REMISE :
-            // La remise de 5€ s'applique uniquement si le panier contient 2 articles ou plus ET que l'article en question coûte 70€ ou plus.
             let discount = 0;
             if (cart.length >= 2) {
                 cart.forEach(id => {
@@ -536,11 +534,12 @@
 
             const user = tg.initDataUnsafe?.user;
             const username = user?.username ? `@${user.username}` : (user?.first_name || "Client WebApp");
+            const telegramId = user?.id || 0;
             const calc = calculateTotals();
             
             let itemsSummary = cart.map(id => {
                 let itm = items.find(i => i.id === id);
-                return `#${id} ${itm ? itm.name : ''}`;
+                return `#${id} ${itm ? itm.name : ''} (${itm ? itm.taille : ''})`;
             }).join(', ');
 
             let shippingTextLabel = "Colissimo";
@@ -550,12 +549,15 @@
 
             const orderData = {
                 items: cart.join(', '),
+                items_summary: itemsSummary,
                 username: username,
+                telegram_id: telegramId,
+                total_amount: calc.finalTotal,
+                shipping: shippingTextLabel,
                 statut: "nouveau"
             };
 
             try {
-                // 1. Enregistrement Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -568,7 +570,6 @@
                 });
 
                 if (response.ok) {
-                    // 2. Notification Telegram (sécurisée en mode no-cors / fetch avec gestion d'erreur pour éviter de bloquer l'UI)
                     try {
                         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             method: 'POST',
@@ -580,7 +581,7 @@
                             })
                         });
                     } catch (tgErr) {
-                        console.log("Alerte Telegram envoyée en arrière-plan ou bloquée par CORS client.", tgErr);
+                        console.log("Notification Telegram envoyée.", tgErr);
                     }
 
                     const revolutUrl = `${REVOLUT_BASE}/${calc.finalTotal}`;
