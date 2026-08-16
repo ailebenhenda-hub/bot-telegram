@@ -598,8 +598,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data = response.json()
             if data:
                 latest_order = data[0]
-                items_summary = latest_order.get("items_summary", "Non spécifié")
-                total_price = latest_order.get("total_amount", 0.0)
+                items_summary = latest_order.get("items_summary", "Panier Web App")
+                total_price = float(latest_order.get("total_amount", 0.0))
                 shipping_info = latest_order.get("shipping", "Non spécifié")
                 found_order = True
     except Exception as e:
@@ -618,7 +618,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if order:
             items_summary = order[0]
-            total_price = order[1]
+            total_price = float(order[1])
             shipping_info = order[2]
             found_order = True
 
