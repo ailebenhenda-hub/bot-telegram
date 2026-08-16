@@ -312,7 +312,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_msg = (
         f"👋 Bienvenue {user.first_name} sur IDF Running Shop !\n\n"
         "Boutique indépendante streetwear & vêtements running. 🔥\n"
-        "• Remise dégressive : -5€ / art. dès 2 articles et 70€ d'achat !\n"
+        "• Remises dégressives par paliers :\n"
+        "  - 2 articles (> 70 €) : -5 €\n"
+        "  - 3 articles (> 90 €) : -10 €\n"
+        "  - 4 articles (> 110 €) : -15 €\n"
+        "  - 5 articles et + (> 130 €) : -20 €\n"
         "• Livraison Gares IDF (mains propres) : de 5€ à 15€ selon la distance.\n"
         "• Colissimo / Web App : 6€ (Gratuit dès 170€ d'achat) !\n\n"
         "Ouvre la Web App ci-dessous ou utilise les boutons du menu !"
@@ -514,25 +518,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id == ADMIN_GROUP_ID:
         return
 
-    total_price = 0.0
-    items_summary = ""
-    shipping_info = ""
+    # --- RÉCUPÉRATION DE LA COMMANDE DEPUIS LA BDD LOCALE ---
+    conn = sqlite3.connect("shop.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
+        (user.id,)
+    )
+    order = cursor.fetchone()
+    conn.close()
 
-    try:
-        response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/commandes?telegram_id=eq.{user.id}&order=id.desc&limit=1",
-            headers=SUPABASE_HEADERS
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if data:
-                total_price = float(data[0].get("total_amount", 0.0))
-                items_summary = data[0].get("items_summary", "Non spécifié")
-                shipping_info = data[0].get("shipping", "Non spécifié")
-    except Exception as e:
-        logging.error(f"Erreur lecture Supabase dans handle_photo: {e}")
-
-    source_text = "Payé via la Web App"
+    if order:
+        items_summary = order[0]
+        total_price = order[1]
+        shipping_info = order[2]
+    else:
+        items_summary = "Non spécifié"
+        total_price = 0.0
+        shipping_info = "Non spécifié"
 
     forwarded = await context.bot.forward_message(
         chat_id=ADMIN_GROUP_ID,
@@ -546,7 +549,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
              f"📦 Articles : {items_summary}\n"
              f"🚚 Livraison : {shipping_info}\n"
              f"💰 Montant : {total_price} €\n"
-             f"Mode : {source_text}",
+             f"Mode : Paiement Telegram",
         reply_to_message_id=forwarded.message_id,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("👨‍💻 Prise en charge", callback_data=f"take_charge_{user.id}")],
@@ -627,10 +630,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         shipping_costs = {"gare_proche": 5, "gare_moyenne": 10, "gare_eloignee": 15, "colissimo": 6}
         shipping = shipping_costs.get(current_delivery, 5)
 
-        # Règle corrigée : -5€ par article SEULEMENT si >= 2 articles ET total >= 70€
+        # --- GRILLE DE RÉDUCTION FINALE (PALIERS DE 20€) ---
         discount = 0
-        if nb_items >= 2 and total >= 70:
-            discount = nb_items * 5
+        if nb_items == 2 and total > 70:
+            discount = 5
+        elif nb_items == 3 and total > 90:
+            discount = 10
+        elif nb_items == 4 and total > 110:
+            discount = 15
+        elif nb_items >= 5 and total > 130:
+            discount = 20
 
         if total >= 170 and current_delivery == "colissimo":
             shipping = 0
@@ -802,10 +811,16 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         }
         shipping = shipping_costs.get(current_delivery, 5)
 
-        # Règle de réduction : -5€ par article SEULEMENT si >= 2 articles ET total >= 70€
+        # --- GRILLE DE RÉDUCTION FINALE (PALIERS DE 20€) ---
         discount = 0
-        if nb_items >= 2 and total >= 70:
-            discount = nb_items * 5
+        if nb_items == 2 and total > 70:
+            discount = 5
+        elif nb_items == 3 and total > 90:
+            discount = 10
+        elif nb_items == 4 and total > 110:
+            discount = 15
+        elif nb_items >= 5 and total > 130:
+            discount = 20
 
         if total >= 170 and current_delivery == "colissimo":
             shipping = 0
@@ -815,7 +830,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         text += f"\n• Sous-total : {total} €\n"
         text += f"• Livraison : +{shipping} €\n"
         if discount > 0:
-            text += f"• Remise dégressive (-{nb_items} art.) : -{discount} €\n"
+            text += f"• Remise dégressive ({nb_items} art.) : -{discount} €\n"
         text += f"💰 **TOTAL : {final_total} €**"
 
         kb = InlineKeyboardMarkup([
