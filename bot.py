@@ -109,7 +109,7 @@ def init_db():
         default_items = [
             ("1", "Pantalon Nike Trail", "S", "8/10", 60),
             ("2", "Pantalon Nike Aeroswift", "M", "Excellent état", 75),
-            ("3", "Pantalon Nike Phenom Elite", "L", "Excellent état", 90),
+            ("3", "Pantalon Nike Phenom Elite", "S", "Excellent état", 90),
             ("4", "Sweat Nike Tech Aviateur v1", "M", "Excellent état", 60),
             ("5", "Pantalon Nike Phenom Elite (Gris)", "L", "Excellent état", 90),
             ("6", "Tee-Shirt Nike Trail", "S", "Excellent état", 40),
