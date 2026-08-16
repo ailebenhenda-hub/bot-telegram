@@ -63,6 +63,7 @@ def init_db():
             taille TEXT,
             etat TEXT,
             prix REAL,
+            poids INTEGER DEFAULT 250,
             available INTEGER DEFAULT 1
         )
     """)
@@ -107,18 +108,18 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM catalog")
     if cursor.fetchone()[0] == 0:
         default_items = [
-            ("1", "Pantalon Nike Trail", "S", "8/10", 60),
-            ("2", "Pantalon Nike Aeroswift", "M", "Excellent état", 75),
-            ("3", "Pantalon Nike Phenom Elite", "S", "Excellent état", 90),
-            ("4", "Sweat Nike Tech Aviateur v1", "M", "Excellent état", 60),
-            ("5", "Pantalon Nike Phenom Elite (Gris)", "L", "Excellent état", 90),
-            ("6", "Tee-Shirt Nike Trail", "S", "Excellent état", 40),
-            ("7", "Tee-Shirt Nike Running Division", "M", "Excellent état", 35),
-            ("8", "Tee-Shirt Nike Dri-Fit (Rouge)", "S", "Excellent état", 30),
-            ("9", "Sweat Nike Tech Fleece (Noir)", "S", "Excellent état", 70),
-            ("10", "Pantalon Nike Phenom Elite Poche Noir", "S", "8/10", 80),
+            ("1", "Pantalon Nike Trail", "S", "8/10", 60, 250),
+            ("2", "Pantalon Nike Aeroswift", "M", "Excellent état", 75, 250),
+            ("3", "Pantalon Nike Phenom Elite", "L", "Excellent état", 90, 250),
+            ("4", "Sweat Nike Tech Aviateur v1", "M", "Excellent état", 60, 800),
+            ("5", "Pantalon Nike Phenom Elite (Gris)", "L", "Excellent état", 90, 250),
+            ("6", "Tee-Shirt Nike Trail", "S", "Excellent état", 40, 150),
+            ("7", "Tee-Shirt Nike Running Division", "M", "Excellent état", 35, 150),
+            ("8", "Tee-Shirt Nike Dri-Fit (Rouge)", "S", "Excellent état", 30, 150),
+            ("9", "Sweat Nike Tech Fleece (Noir)", "S", "Excellent état", 70, 900),
+            ("10", "Pantalon Nike Phenom Elite Poche Noir", "S", "8/10", 80, 250),
         ]
-        cursor.executemany("INSERT INTO catalog (item_id, name, taille, etat, prix, available) VALUES (?, ?, ?, ?, ?, 1)", default_items)
+        cursor.executemany("INSERT INTO catalog (item_id, name, taille, etat, prix, poids, available) VALUES (?, ?, ?, ?, ?, ?, 1)", default_items)
     
     conn.commit()
     conn.close()
@@ -186,12 +187,12 @@ def give_referral_reward(user_id):
 def get_catalog_items():
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT item_id, name, taille, etat, prix, available FROM catalog")
+    cursor.execute("SELECT item_id, name, taille, etat, prix, poids, available FROM catalog")
     rows = cursor.fetchall()
     conn.close()
     catalog = {}
     for r in rows:
-        catalog[r[0]] = {"name": r[1], "taille": r[2], "etat": r[3], "prix": r[4], "available": bool(r[5])}
+        catalog[r[0]] = {"name": r[1], "taille": r[2], "etat": r[3], "prix": r[4], "poids": r[5], "available": bool(r[6])}
     return catalog
 
 def add_to_cart(user_id, item_id):
@@ -238,6 +239,87 @@ def toggle_vip(user_id):
     conn.commit()
     conn.close()
     return status
+
+def calculate_colissimo_shipping(total_weight_grams):
+    # Grille officielle Colissimo France métropolitaine (domicile)
+    if total_weight_grams <= 250:
+        return 5.49
+    elif total_weight_grams <= 500:
+        return 7.59
+    elif total_weight_grams <= 750:
+        return 9.29
+    elif total_weight_grams <= 1000:
+        return 9.59
+    elif total_weight_grams <= 2000:
+        return 11.19
+    elif total_weight_grams <= 5000:
+        return 17.39
+    elif total_weight_grams <= 10000:
+        return 25.29
+    elif total_weight_grams <= 15000:
+        return 31.99
+    else:
+        return 39.59
+
+def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_mode, total_price):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # En-tête style pro
+    p.setFont("Helvetica-Bold", 18)
+    p.drawString(50, 740, "SHVPPEUR CORP")
+    p.setFont("Helvetica", 9)
+    p.drawString(50, 725, "IDF Running Shop - Vêtements Streetwear & Running Second-Main")
+    p.drawString(50, 712, "Telegram : @idf_runningshop | Snapchat : @BW0Gzw9i")
+    
+    p.setFont("Helvetica-Bold", 10)
+    p.drawRightString(560, 740, f"FACTURE #{order_id}")
+    p.setFont("Helvetica", 9)
+    p.drawRightString(560, 725, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    p.drawRightString(560, 712, f"Client Telegram ID : {client_id}")
+    
+    # Encadré Client
+    p.rect(380, 640, 180, 55)
+    p.setFont("Helvetica-Bold", 9)
+    p.drawString(390, 680, "Facturé à :")
+    p.setFont("Helvetica", 9)
+    p.drawString(390, 665, f"Client : {client_name}")
+    p.drawString(390, 650, f"ID : {client_id}")
+
+    # Tableau des articles
+    p.setFillColorRGB(0.9, 0.9, 0.9)
+    p.rect(50, 580, 510, 20, fill=1, stroke=0)
+    p.setFillColorRGB(0, 0, 0)
+    p.setFont("Helvetica-Bold", 9)
+    p.drawString(60, 586, "Description des articles")
+    p.drawString(320, 586, "Livraison")
+    p.drawRightString(550, 586, "Total TTC")
+    
+    p.setFont("Helvetica", 9)
+    p.drawString(60, 555, items_str[:50])
+    p.drawString(320, 555, delivery_mode)
+    p.drawRightString(550, 555, f"{total_price} €")
+    
+    p.line(50, 535, 560, 535)
+    
+    # Totaux
+    p.drawString(380, 510, "Total Hors TVA :")
+    p.drawRightString(550, 510, f"{total_price} €")
+    p.drawString(380, 495, "TVA (0% - Franchise) :")
+    p.drawRightString(550, 495, "0.00 €")
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(380, 475, "MONTANT TOTAL :")
+    p.drawRightString(550, 475, f"{total_price} €")
+    
+    # Pied de page
+    p.setFont("Helvetica-Oblique", 8)
+    p.drawString(50, 100, "Merci pour votre achat chez Shvppeur Corp / IDF Running Shop !")
+    p.drawString(50, 88, "Retrouvez tous nos drops sur Telegram et Snapchat.")
+    
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
 
 reservations = {}  
 known_users = set()
@@ -317,8 +399,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  - 3 articles (> 90 €) : -10 €\n"
         "  - 4 articles (> 110 €) : -15 €\n"
         "  - 5 articles et + (> 130 €) : -20 €\n"
-        "• Livraison Gares IDF (mains propres) : de 5€ à 15€ selon la distance.\n"
-        "• Colissimo / Web App : 6€ (Gratuit dès 170€ d'achat) !\n\n"
+        "• Livraison Gares IDF (mains propres) : Forfait 5€, 10€ ou 15€ (fixe, sans poids).\n"
+        "• Colissimo : Tarif calculé dynamiquement au gramme près (Gratuit dès 170€ d'achat) !\n\n"
         "Ouvre la Web App ci-dessous ou utilise les boutons du menu !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
@@ -474,18 +556,7 @@ async def admin_facture(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Le montant doit être un nombre valide.")
         return
 
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    p.drawString(100, 750, "IDF RUNNING SHOP - FACTURE OFFICIELLE")
-    p.drawString(100, 720, f"Date : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    p.drawString(100, 690, f"Client : {client_name}")
-    p.drawString(100, 660, f"Article : {item_name}")
-    p.drawString(100, 630, f"Montant total : {amount} €")
-    p.drawString(100, 580, "Merci pour votre achat !")
-    p.showPage()
-    p.save()
-    buffer.seek(0)
-
+    buffer = generate_invoice_pdf(0, client_name, update.effective_user.id, item_name, "Standard", amount)
     await update.message.reply_document(
         document=buffer,
         filename=f"facture_{client_name}.pdf",
@@ -518,7 +589,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id == ADMIN_GROUP_ID:
         return
 
-    # --- RÉCUPÉRATION DE LA COMMANDE DEPUIS LA BDD LOCALE ---
     conn = sqlite3.connect("shop.db")
     cursor = conn.cursor()
     cursor.execute(
@@ -583,7 +653,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 status = "⏳ [RÉSERVÉ]"
                 kb_rows.append([InlineKeyboardButton(f"⏳ #{item_id} - {data['name']} (Réservé)", callback_data="noop")])
             else:
-                status = f"• {data['taille']} | {data['etat']} | {data['prix']} €"
+                status = f"• {data['taille']} | {data['etat']} | {data['prix']} € ({data['poids']}g)"
                 kb_rows.append([InlineKeyboardButton(f"➕ Ajouter #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
             text += f"#{item_id} - {data['name']}\n    {status}\n\n"
 
@@ -627,10 +697,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         nb_items = len(cart_items)
         current_delivery = delivery_choices.get(user_id, "gare_proche")
         
-        shipping_costs = {"gare_proche": 5, "gare_moyenne": 10, "gare_eloignee": 15, "colissimo": 6}
-        shipping = shipping_costs.get(current_delivery, 5)
+        # Calcul du poids total pour Colissimo ou forfait pour gares IDF
+        if current_delivery == "colissimo":
+            total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
+            shipping = calculate_colissimo_shipping(total_weight)
+            if total >= 170:
+                shipping = 0
+        else:
+            shipping_costs = {"gare_proche": 5, "gare_moyenne": 10, "gare_eloignee": 15}
+            shipping = shipping_costs.get(current_delivery, 5)
 
-        # --- GRILLE DE RÉDUCTION FINALE (PALIERS DE 20€) ---
         discount = 0
         if nb_items == 2 and total > 70:
             discount = 5
@@ -640,9 +716,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             discount = 15
         elif nb_items >= 5 and total > 130:
             discount = 20
-
-        if total >= 170 and current_delivery == "colissimo":
-            shipping = 0
 
         final_total = max(0, total + shipping - discount)
         items_names = ", ".join([catalog[i]['name'] for i in cart_items])
@@ -720,7 +793,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📏 Guide des tailles standard Nike.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
 
     elif query.data == "click_and_collect_info":
-        await query.edit_message_text("🤝 Livraison en Gares IDF (mains propres) : de 5€ à 15€ selon la distance.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
+        await query.edit_message_text("🤝 Livraison en Gares IDF (mains propres) : Forfaits fixes (5€, 10€ ou 15€ selon la distance).", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="main_menu")]]))
 
     elif query.data == "toggle_vip_status":
         toggle_vip(user_id)
@@ -742,7 +815,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("confirm_pay_"):
         parts = query.data.split("_")
         target_id = int(parts[2])
-        total_price = float(parts[3])
+
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT order_id, items_str, total_price, delivery_mode FROM orders WHERE user_id = ? AND status = 'En attente de paiement' ORDER BY order_id DESC LIMIT 1",
+            (target_id,)
+        )
+        ord_data = cursor.fetchone()
+        if ord_data:
+            ord_id, items_str, final_price, delivery_mode = ord_data
+            cursor.execute("UPDATE orders SET status = 'Payé' WHERE order_id = ?", (ord_id,))
+        else:
+            ord_id, items_str, final_price, delivery_mode = (0, "Articles divers", 0.0, "Standard")
+        conn.commit()
+        conn.close()
 
         try:
             requests.patch(
@@ -753,7 +840,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"Erreur update Supabase validation : {e}")
 
-        add_points(target_id, int(total_price))
+        add_points(target_id, int(final_price))
         referrer_id = give_referral_reward(target_id)
         if referrer_id:
             try:
@@ -761,11 +848,24 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
+        try:
+            user_obj = await context.bot.get_chat(target_id)
+            client_name = user_obj.first_name or "Client"
+            pdf_buffer = generate_invoice_pdf(ord_id, client_name, target_id, items_str, delivery_mode, final_price)
+            await context.bot.send_document(
+                chat_id=target_id,
+                document=pdf_buffer,
+                filename=f"Facture_IDF_Running_Shop_{ord_id}.pdf",
+                caption="📄 Voici la facture officielle de votre commande chez Shvppeur Corp !"
+            )
+        except Exception as err:
+            logging.error(f"Erreur envoi facture PDF client : {err}")
+
         await query.edit_message_text(
-            text=f"{query.message.text}\n\n✅ **STATUT : Paiement validé par {query.from_user.first_name}**",
+            text=f"{query.message.text}\n\n✅ **STATUT : Paiement validé & Facture envoyée par {query.from_user.first_name}**",
             parse_mode="Markdown"
         )
-        await context.bot.send_message(chat_id=target_id, text="✅ Paiement validé avec succès ! Ta commande est confirmée.")
+        await context.bot.send_message(chat_id=target_id, text="✅ Paiement validé avec succès ! Ta commande est confirmée et ta facture t'a été envoyée ci-dessus.")
 
     elif query.data.startswith("refuse_pay_"):
         target_id = int(query.data.split("_")[2])
@@ -800,18 +900,23 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         nb_items = len(cart_items)
         for item_id in cart_items:
             item = catalog[item_id]
-            text += f"• #{item_id} - {item['name']} : **{item['prix']} €**\n"
+            text += f"• #{item_id} - {item['name']} : **{item['prix']} €** ({item['poids']}g)\n"
             total += item['prix']
         
-        shipping_costs = {
-            "gare_proche": 5,
-            "gare_moyenne": 10,
-            "gare_eloignee": 15,
-            "colissimo": 6
-        }
-        shipping = shipping_costs.get(current_delivery, 5)
+        # Calcul des frais de port dissociés (Colissimo dynamique vs Gares fixes)
+        if current_delivery == "colissimo":
+            total_weight = sum(catalog[item_id].get('poids', 250) for item_id in cart_items)
+            shipping = calculate_colissimo_shipping(total_weight)
+            if total >= 170:
+                shipping = 0
+        else:
+            shipping_costs = {
+                "gare_proche": 5,
+                "gare_moyenne": 10,
+                "gare_eloignee": 15
+            }
+            shipping = shipping_costs.get(current_delivery, 5)
 
-        # --- GRILLE DE RÉDUCTION FINALE (PALIERS DE 20€) ---
         discount = 0
         if nb_items == 2 and total > 70:
             discount = 5
@@ -822,13 +927,10 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
         elif nb_items >= 5 and total > 130:
             discount = 20
 
-        if total >= 170 and current_delivery == "colissimo":
-            shipping = 0
-
         final_total = max(0, total + shipping - discount)
 
         text += f"\n• Sous-total : {total} €\n"
-        text += f"• Livraison : +{shipping} €\n"
+        text += f"• Livraison ({current_delivery}) : +{shipping} €\n"
         if discount > 0:
             text += f"• Remise dégressive ({nb_items} art.) : -{discount} €\n"
         text += f"💰 **TOTAL : {final_total} €**"
@@ -837,7 +939,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
             [InlineKeyboardButton("🚂 Gare IDF Proche (5€)", callback_data="set_del_gare_proche"),
              InlineKeyboardButton("🚂 Gare IDF Moyenne (10€)", callback_data="set_del_gare_moyenne")],
             [InlineKeyboardButton("🚂 Gare IDF Lointaine (15€)", callback_data="set_del_gare_eloignee")],
-            [InlineKeyboardButton("📦 Colissimo (6€ / Gratuit dès 170€)", callback_data="set_del_colissimo")],
+            [InlineKeyboardButton("📦 Colissimo (Calcul au poids / Gratuit dès 170€)", callback_data="set_del_colissimo")],
             [InlineKeyboardButton("✅ Valider et Payer", callback_data="checkout_cart")],
             [InlineKeyboardButton("🗑️ Vider", callback_data="clear_cart"),
              InlineKeyboardButton("📦 Catalogue", callback_data="show_catalog")]
@@ -850,10 +952,7 @@ def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     application.job_queue.run_repeating(check_reservations_job, interval=10, first=10)
 
-    # Commandes Utilisateur
     application.add_handler(CommandHandler("start", start))
-
-    # Commandes Admin
     application.add_handler(CommandHandler("vendu", admin_vendu))
     application.add_handler(CommandHandler("resto", admin_resto))
     application.add_handler(CommandHandler("suivi", admin_suivi))
