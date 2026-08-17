@@ -110,16 +110,36 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM catalog")
     if cursor.fetchone()[0] == 0:
         default_items = [
-            ("1", "Pantalon Nike Trail", "S", "8/10", 60, 250),
-            ("2", "Pantalon Nike Aeroswift", "M", "Excellent état", 75, 250),
-            ("3", "Pantalon Nike Phenom Elite", "L", "Excellent état", 90, 250),
-            ("4", "Sweat Nike Tech Aviateur v1", "M", "Excellent état", 60, 800),
-            ("5", "Pantalon Nike Phenom Elite (Gris)", "L", "Excellent état", 90, 250),
-            ("6", "Tee-Shirt Nike Trail", "S", "Excellent état", 40, 150),
-            ("7", "Tee-Shirt Nike Running Division", "M", "Excellent état", 35, 150),
-            ("8", "Tee-Shirt Nike Dri-Fit (Rouge)", "S", "Excellent état", 30, 150),
-            ("9", "Sweat Nike Tech Fleece (Noir)", "S", "Excellent état", 70, 900),
-            ("10", "Pantalon Nike Phenom Elite Poche Noir", "S", "8/10", 80, 250),
+            ("1", "Nike t-shirt vert", "M", "Reçu", 35, 150),
+            ("2", "Nike short bleu/gris", "M", "Reçu", 25, 200),
+            ("3", "Nike short blanc", "L", "Reçu", 25, 200),
+            ("4", "Nike t-shirt gris", "S", "Reçu", 25, 150),
+            ("5", "Nike short rose", "M", "Reçu", 20, 200),
+            ("6", "Nike aviateur v1 gris", "M", "Excellent état 🟢 (Gris chiné)", 60, 800),
+            ("7", "Nike t-shirt os", "XL", "Reçu", 45, 150),
+            ("8", "Nike t-shirt rose", "S", "Reçu", 30, 150),
+            ("9", "Nike short noir", "L", "Reçu", 25, 200),
+            ("10", "Nike short noir", "XS", "Reçu", 25, 200),
+            ("11", "Nike t-shirt trail noir", "L", "Reçu", 30, 150),
+            ("12", "Nike t-shirt trail gris", "L", "Reçu", 30, 150),
+            ("13", "Nike short noir lacet full noir", "S", "Reçu", 20, 200),
+            ("14", "Nike short noir nike penché", "M", "Reçu", 25, 200),
+            ("15", "Nike short bleu", "M", "Reçu", 20, 200),
+            ("16", "Nike short gris nike penché", "S", "Reçu", 25, 200),
+            ("17", "Nike pants phenom elite poche noir", "S", "8/10", 80, 250),
+            ("18", "Ensemble Kelly Anna", "L", "Reçu", 140, 800),
+            ("19", "Nike veste chinese dragon", "M", "Reçu", 110, 700),
+            ("20", "Nike kangourou noir", "S", "Reçu", 70, 750),
+            ("21", "Nike aviateur v2 gris", "L", "Reçu", 70, 800),
+            ("22", "Nike pull tech noir", "S", "Excellent état 🟢 (Noir classique)", 70, 850),
+            ("23", "Nike pull tech noir", "S", "Reçu", 70, 850),
+            ("24", "Nike t-shirt trail bleu clair", "S", "Excellent état 🟢 (Gris clair / Bleu glacier)", 40, 150),
+            ("25", "Nike t-shirt rouge", "M", "Excellent état 🟢 (Couleur : Rouge)", 30, 150),
+            ("26", "Nike t-shirt noir reflet doré", "M", "Excellent état 🟢 (Noir à motifs géométriques)", 35, 150),
+            ("27", "Nike pants phenom elite noir", "S", "Excellent état 🟢 (Couleur : Noir)", 90, 250),
+            ("28", "Nike pants phenom elite gris", "L", "Excellent état 🟢 (Couleur : Gris)", 85, 250),
+            ("29", "Nike pants trail noir", "S", "8/10 (petite égratignure sur le genou)", 60, 250),
+            ("30", "Nike pants aeroswift", "M", "Excellent état 🟢 (Couleur : Noir)", 75, 250),
         ]
         cursor.executemany("INSERT INTO catalog (item_id, name, taille, etat, prix, poids, available) VALUES (?, ?, ?, ?, ?, ?, 1)", default_items)
     
@@ -943,7 +963,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         type_keywords = {
             "tshirt": ["tee-shirt", "t-shirt", "tee shirt"],
             "short": ["short"],
-            "pull": ["pull", "sweat", "tech fleece", "aviateur"],
+            "pull": ["pull", "sweat", "tech fleece", "aviateur", "ensemble"],
             "pantalon": ["pantalon", "trousers"]
         }
         keywords = type_keywords.get(selected_type, [selected_type])
