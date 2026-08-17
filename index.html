@@ -266,15 +266,11 @@
 
     <input type="text" id="search-input" class="search-box" placeholder="🔍 Rechercher un article..." oninput="filterCatalog()">
 
-    <div class="filter-chips">
+    <div class="filter-chips" id="filter-chips">
         <div class="chip active" onclick="setFilter('ALL', this)">Tout</div>
-        <div class="chip" onclick="setFilter('S', this)">Taille S</div>
-        <div class="chip" onclick="setFilter('M', this)">Taille M</div>
-        <div class="chip" onclick="setFilter('L', this)">Taille L</div>
-        <div class="chip" onclick="setFilter('XL', this)">Taille XL</div>
     </div>
 
-    <div class="catalog-grid" id="catalog-container"></div>
+    <div class="catalog-grid" id="catalog-container">Chargement...</div>
 
     <div class="footer-cart" id="footer-cart-bar">
         <button class="checkout-btn" onclick="openCartModal()">
@@ -298,26 +294,23 @@
         const ADMIN_GROUP_ID = "-1003956183527";
         const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
 
-        const items = [
-            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, poids: 250 },
-            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, poids: 250 },
-            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, poids: 250 },
-            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, poids: 800 },
-            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, poids: 250 },
-            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, poids: 150 },
-            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, poids: 150 },
-            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, poids: 150 },
-            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, poids: 900 },
-            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, poids: 250 }
-        ];
-
+        let items = [];
+        let soldItems = [];
         let currentSize = 'ALL';
         let cart = [];
-        let soldItems = [];
         let selectedShippingMethod = 'colissimo';
 
-        async function fetchSoldItems() {
+        async function fetchCatalogAndData() {
             try {
+                // 1. Récupérer le catalogue depuis Supabase
+                let catResponse = await fetch(`${SUPABASE_URL}/rest/v1/catalog?select=*`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                if (catResponse.ok) {
+                    items = await catResponse.json();
+                }
+
+                // 2. Récupérer les articles vendus
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes?select=items`, {
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
                 });
@@ -333,7 +326,18 @@
             } catch (e) {
                 console.error("Erreur chargement stock", e);
             }
+            renderFilters();
             renderCatalog();
+        }
+
+        function renderFilters() {
+            const sizes = ['ALL', ...new Set(items.map(i => i.taille))];
+            const filterContainer = document.getElementById('filter-chips');
+            filterContainer.innerHTML = sizes.map(s => `
+                <div class="chip ${currentSize === s ? 'active' : ''}" onclick="setFilter('${s}', this)">
+                    ${s === 'ALL' ? 'Tout' : 'Taille ' + s}
+                </div>
+            `).join('');
         }
 
         function renderCatalog(filterText = '') {
@@ -342,7 +346,7 @@
 
             const filtered = items.filter(item => {
                 const matchesSize = currentSize === 'ALL' || item.taille === currentSize;
-                const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || item.id.includes(filterText);
+                const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || String(item.item_id).includes(filterText);
                 return matchesSize && matchesSearch;
             });
 
@@ -352,12 +356,12 @@
             }
 
             filtered.forEach(item => {
-                const isSoldOut = soldItems.includes(item.id);
+                const isSoldOut = soldItems.includes(String(item.item_id));
                 const card = document.createElement("div");
                 card.className = "item-card";
                 card.innerHTML = `
                     <div class="item-info">
-                        <h3>#${item.id} - ${item.name}</h3>
+                        <h3>#${item.item_id} - ${item.name}</h3>
                         <div class="item-meta">
                             <span class="badge">Taille ${item.taille}</span>
                             <span class="badge">${item.etat}</span>
@@ -366,7 +370,7 @@
                     </div>
                     ${isSoldOut 
                         ? `<button class="add-btn sold-out" disabled>Épuisé</button>` 
-                        : `<button class="add-btn" id="btn-${item.id}" onclick="addToCart('${item.id}', this)">Ajouter</button>`
+                        : `<button class="add-btn" id="btn-${item.item_id}" onclick="addToCart('${item.item_id}', this)">Ajouter</button>`
                     }
                 `;
                 container.appendChild(card);
@@ -441,7 +445,7 @@
             let subtotal = 0;
             let totalWeight = 0;
             cart.forEach(id => {
-                let item = items.find(i => i.id === id);
+                let item = items.find(i => String(i.item_id) === String(id));
                 if (item) {
                     subtotal += item.prix;
                     totalWeight += (item.poids || 250);
@@ -505,12 +509,12 @@
 
             const listEl = document.getElementById("cartItemsList");
             cart.forEach((id, index) => {
-                let item = items.find(i => i.id === id);
+                let item = items.find(i => String(i.item_id) === String(id));
                 if (item) {
                     const row = document.createElement("div");
                     row.className = "cart-item-row";
                     row.innerHTML = `
-                        <span>#${item.id} - ${item.name} (${item.taille})</span>
+                        <span>#${item.item_id} - ${item.name} (${item.taille})</span>
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <strong>${item.prix} €</strong>
                             <button class="remove-item" onclick="removeFromCart(${index})">&times;</button>
@@ -549,7 +553,7 @@
             const calc = calculateTotals();
             
             let itemsSummary = cart.map(id => {
-                let itm = items.find(i => i.id === id);
+                let itm = items.find(i => String(i.item_id) === String(id));
                 return `#${id} ${itm ? itm.name : ''} (${itm ? itm.taille : ''})`;
             }).join(', ');
 
@@ -617,7 +621,7 @@
 
                     cart = [];
                     updateCartUI();
-                    fetchSoldItems();
+                    fetchCatalogAndData();
 
                 } else {
                     let errorData = await response.json();
@@ -630,7 +634,7 @@
             }
         }
 
-        fetchSoldItems();
+        fetchCatalogAndData();
     </script>
 </body>
 </html>
