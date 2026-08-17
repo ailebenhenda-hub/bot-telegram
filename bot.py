@@ -401,12 +401,12 @@ async def send_3min_reminder_job(context: ContextTypes.DEFAULT_TYPE):
         )
 
 def get_main_keyboard(user_id):
-    vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
+    vip_btn_text = "✨ Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
     keyboard = [
         [InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
          InlineKeyboardButton("🛒 Mon Panier", callback_data="show_cart")],
         [InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size"),
-         InlineKeyboardButton("👕 Filtrer par type d'article", callback_data="filter_type")],
+         InlineKeyboardButton("👕 Filtrer par type d’article", callback_data="filter_type")],
         [InlineKeyboardButton("📦 Mes Commandes & Suivi", callback_data="show_orders"),
          InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral")],
         [InlineKeyboardButton("⭐ Fidélité", callback_data="show_points"),
@@ -928,7 +928,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
 
     elif query.data == "filter_type":
-        text = "👕 Filtrer par type d'article :\nSélectionne une catégorie :"
+        text = "👕 Filtrer par type d’article :\nSélectionne une catégorie :"
         kb = [
             [InlineKeyboardButton("Tee-Shirt", callback_data="type_tshirt"),
              InlineKeyboardButton("Short", callback_data="type_short")],
