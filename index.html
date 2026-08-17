@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IDF Running Shop</title>
-    <!-- Chargement de la police Inter pour un style plus moderne et léché -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -14,36 +12,33 @@
             --card-border: rgba(255, 255, 255, 0.08);
             --text-color: #ffffff;
             --secondary-text: #8e8e93;
-            --success: #00ff66; /* Vert électrique plus dynamique */
+            --success: #34c759;
             --danger: #ff453a;
-            --accent-glow: rgba(0, 255, 102, 0.15);
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 16px;
+            padding: 14px;
             padding-bottom: 120px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 18px;
+            margin-bottom: 15px;
             padding-top: 10px;
         }
 
         h1 {
-            font-size: 26px;
-            font-weight: 800;
-            margin: 0 0 6px 0;
-            letter-spacing: -0.5px;
-            color: #ffffff;
-        }
-
-        h1 span {
-            color: var(--success);
+            font-size: 24px;
+            font-weight: 900;
+            margin: 0 0 4px 0;
+            letter-spacing: 0.5px;
+            background: linear-gradient(180deg, #ffffff 0%, #bbbbbb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         p.subtitle {
@@ -58,19 +53,18 @@
         .announcement-banner {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 14px 16px;
+            border-radius: 14px;
+            padding: 14px;
             text-align: center;
             font-size: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 15px;
             color: #d1d1d6;
             line-height: 1.4;
-            backdrop-filter: blur(10px);
         }
 
         .search-box {
             width: 100%;
-            padding: 14px 16px;
+            padding: 13px 16px;
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 14px;
@@ -79,18 +73,13 @@
             margin-bottom: 12px;
             box-sizing: border-box;
             outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .search-box:focus {
-            border-color: var(--success);
         }
 
         .filter-chips {
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
             padding-bottom: 4px;
             scrollbar-width: none;
         }
@@ -101,20 +90,18 @@
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             color: var(--secondary-text);
-            padding: 8px 16px;
+            padding: 7px 16px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.2s;
         }
 
         .chip.active {
-            background-color: var(--success);
+            background-color: #ffffff;
             color: #000000;
-            border-color: var(--success);
-            font-weight: 700;
+            border-color: #ffffff;
         }
 
         .catalog-grid {
@@ -133,16 +120,10 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(10px);
-            transition: transform 0.2s;
-        }
-
-        .item-card:active {
-            transform: scale(0.98);
         }
 
         .item-info { flex-grow: 1; padding-right: 12px; }
-        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; letter-spacing: -0.2px; }
+        .item-info h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px 0; color: #ffffff; }
         
         .item-meta {
             display: flex;
@@ -152,8 +133,8 @@
             margin-bottom: 8px;
         }
 
-        .badge { background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; color: #d1d1d6; font-weight: 500; }
-        .item-price { font-weight: 800; font-size: 16px; color: #ffffff; }
+        .badge { background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px; color: #d1d1d6; }
+        .item-price { font-weight: 900; font-size: 16px; color: #ffffff; }
 
         @keyframes popClick {
             0% { transform: scale(1); }
@@ -165,17 +146,17 @@
             background-color: #ffffff;
             color: #000000;
             border: none;
-            border-radius: 12px;
-            padding: 10px 18px;
+            border-radius: 10px;
+            padding: 10px 16px;
             font-weight: 700;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background-color 0.2s;
             white-space: nowrap;
         }
 
         .add-btn.pop-anim { animation: popClick 0.3s ease-in-out; }
-        .add-btn.added { background-color: var(--success); color: #000000; }
+        .add-btn.added { background-color: var(--success); color: #ffffff; }
         
         .add-btn.sold-out {
             background-color: rgba(255,255,255,0.05);
@@ -195,19 +176,18 @@
         }
 
         .checkout-btn {
-            background-color: var(--success);
+            background-color: #ffffff;
             color: #000000;
             border: none;
             width: 100%;
             padding: 14px;
-            border-radius: 14px;
+            border-radius: 12px;
             font-weight: 800;
             font-size: 14px;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 20px var(--accent-glow);
         }
 
         .cart-modal {
@@ -234,17 +214,17 @@
 
         .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .cart-header h2 { font-size: 18px; font-weight: 800; margin: 0; }
-        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .close-cart { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
 
         .cart-items-list { overflow-y: auto; max-height: 25vh; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px 14px; border-radius: 12px; font-size: 13px; border: 1px solid var(--card-border); }
+        .cart-item-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 12px; font-size: 13px; }
         .remove-item { color: var(--danger); background: none; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
 
         .shipping-section {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 14px;
+            border-radius: 12px;
+            padding: 12px;
             margin-bottom: 15px;
         }
         .shipping-section label {
@@ -259,24 +239,24 @@
             background: #1c1c1e;
             border: 1px solid var(--card-border);
             color: white;
-            padding: 12px;
-            border-radius: 10px;
+            padding: 10px;
+            border-radius: 8px;
             font-size: 13px;
             outline: none;
         }
 
-        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 14px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 8px; }
+        .cart-summary { border-top: 1px solid var(--card-border); padding-top: 12px; margin-bottom: 16px; font-size: 13px; color: var(--secondary-text); display: flex; flex-direction: column; gap: 6px; }
         .summary-row { display: flex; justify-content: space-between; }
-        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px; }
+        .summary-row.total { color: white; font-weight: 900; font-size: 16px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
 
-        .validate-order-btn { background-color: var(--success); color: #000000; border: none; width: 100%; padding: 14px; border-radius: 14px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; box-shadow: 0 4px 20px var(--accent-glow); }
+        .validate-order-btn { background-color: var(--success); color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer; text-align: center; }
         .no-result { text-align: center; color: var(--secondary-text); font-size: 13px; padding: 20px; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>IDF <span>RUNNING SHOP</span></h1>
+        <h1>IDF RUNNING SHOP</h1>
         <p class="subtitle">Streetwear & Vêtements Running</p>
     </header>
 
@@ -318,31 +298,40 @@
         const ADMIN_GROUP_ID = "-1003956183527";
         const REVOLUT_BASE = "https://revolut.me/shvppeur_corp";
 
-        let items = [];
+        const items = [
+            { id: "1", name: "Pantalon Nike Trail", taille: "S", etat: "8/10", prix: 60, poids: 250 },
+            { id: "2", name: "Pantalon Nike Aeroswift", taille: "M", etat: "Excellent", prix: 75, poids: 250 },
+            { id: "3", name: "Pantalon Nike Phenom Elite", taille: "S", etat: "Excellent", prix: 90, poids: 250 },
+            { id: "4", name: "Sweat Nike Tech Aviateur v1", taille: "M", etat: "Excellent", prix: 60, poids: 800 },
+            { id: "5", name: "Pantalon Nike Phenom Elite (Gris)", taille: "L", etat: "Excellent", prix: 90, poids: 250 },
+            { id: "6", name: "Tee-Shirt Nike Trail", taille: "S", etat: "Excellent", prix: 40, poids: 150 },
+            { id: "7", name: "Tee-Shirt Nike Running Division", taille: "M", etat: "Excellent", prix: 35, poids: 150 },
+            { id: "8", name: "Tee-Shirt Nike Dri-Fit (Rouge)", taille: "S", etat: "Excellent", prix: 30, poids: 150 },
+            { id: "9", name: "Sweat Nike Tech Fleece (Noir)", taille: "S", etat: "Excellent", prix: 70, poids: 900 },
+            { id: "10", name: "Pantalon Nike Phenom Elite Poche Noir", taille: "S", etat: "8/10", prix: 80, poids: 250 }
+        ];
+
         let currentSize = 'ALL';
         let cart = [];
+        let soldItems = [];
         let selectedShippingMethod = 'colissimo';
 
-        async function fetchCatalog() {
+        async function fetchSoldItems() {
             try {
-                let response = await fetch(`${SUPABASE_URL}/rest/v1/catalog?select=*`, {
+                let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes?select=items`, {
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
                 });
                 if (response.ok) {
                     let data = await response.json();
-                    // Conversion des données Supabase au format attendu par la WebApp
-                    items = data.map(r => ({
-                        id: String(r.item_id || r.id),
-                        name: r.name,
-                        taille: r.taille || "U",
-                        etat: r.etat || "Bon état",
-                        prix: Number(r.prix || 0),
-                        poids: Number(r.poids || 250),
-                        available: r.available === 1 || r.available === true
-                    }));
+                    soldItems = [];
+                    data.forEach(row => {
+                        if (row.items) {
+                            row.items.split(',').forEach(id => soldItems.push(id.trim()));
+                        }
+                    });
                 }
             } catch (e) {
-                console.error("Erreur chargement catalogue Supabase", e);
+                console.error("Erreur chargement stock", e);
             }
             renderCatalog();
         }
@@ -352,7 +341,7 @@
             container.innerHTML = "";
 
             const filtered = items.filter(item => {
-                const matchesSize = currentSize === 'ALL' || (item.taille && item.taille.toUpperCase() === currentSize.toUpperCase());
+                const matchesSize = currentSize === 'ALL' || item.taille === currentSize;
                 const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) || item.id.includes(filterText);
                 return matchesSize && matchesSearch;
             });
@@ -363,7 +352,7 @@
             }
 
             filtered.forEach(item => {
-                const isSoldOut = !item.available;
+                const isSoldOut = soldItems.includes(item.id);
                 const card = document.createElement("div");
                 card.className = "item-card";
                 card.innerHTML = `
@@ -580,7 +569,6 @@
             };
 
             try {
-                // Enregistrement de la commande dans Supabase
                 let response = await fetch(`${SUPABASE_URL}/rest/v1/commandes`, {
                     method: 'POST',
                     headers: {
@@ -593,19 +581,6 @@
                 });
 
                 if (response.ok) {
-                    // Mettre à jour la disponibilité des articles commandés dans le catalogue Supabase (available = 0)
-                    for (let id of cart) {
-                        await fetch(`${SUPABASE_URL}/rest/v1/catalog?item_id=eq.${id}`, {
-                            method: 'PATCH',
-                            headers: {
-                                'apikey': SUPABASE_KEY,
-                                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ available: 0 })
-                        });
-                    }
-
                     try {
                         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             method: 'POST',
@@ -642,7 +617,7 @@
 
                     cart = [];
                     updateCartUI();
-                    fetchCatalog(); // Recharger le catalogue pour griser les articles achetés
+                    fetchSoldItems();
 
                 } else {
                     let errorData = await response.json();
@@ -655,8 +630,7 @@
             }
         }
 
-        // Lancer le chargement du catalogue au démarrage de la Web App
-        fetchCatalog();
+        fetchSoldItems();
     </script>
 </body>
 </html>
