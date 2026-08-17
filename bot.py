@@ -128,7 +128,6 @@ def init_db():
 
 init_db()
 
-# Synchronisation du stock avec Supabase
 def update_supabase_stock(item_id, available_status):
     try:
         requests.patch(
@@ -188,7 +187,6 @@ def give_referral_reward(user_id):
         try:
             join_dt = datetime.strptime(join_date_str, "%Y-%m-%d %H:%M:%S")
             if datetime.now() <= join_dt + timedelta(days=7):
-                # CORRECTION PARRAINAGE : On donne la réduction de -5€ au PARRAIN et non au filleul
                 cursor.execute("UPDATE users SET discount_coupon = discount_coupon + 1, referred_by = -1 WHERE user_id = ?", (user_id,))
                 cursor.execute("UPDATE users SET discount_coupon = discount_coupon + 1 WHERE user_id = ?", (referrer_id,))
                 conn.commit()
@@ -348,7 +346,7 @@ async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ?", (order_id,))
         for i_id in item_ids:
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
-            update_supabase_stock(i_id, True)  # Synchro Supabase stock remis
+            update_supabase_stock(i_id, True)
         conn.commit()
         conn.close()
 
@@ -405,14 +403,13 @@ async def send_3min_reminder_job(context: ContextTypes.DEFAULT_TYPE):
 def get_main_keyboard(user_id):
     vip_btn_text = "🔕 Se désinscrire des VIP Drops" if is_vip(user_id) else "🔔 S'inscrire aux Drops VIP"
     keyboard = [
-        [InlineKeyboardButton("🛍️ Ouvrir la Boutique (Web App)", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📦 Catalogue & Stock", callback_data="show_catalog"),
          InlineKeyboardButton("🛒 Mon Panier", callback_data="show_cart")],
         [InlineKeyboardButton("🔍 Filtrer par taille", callback_data="filter_size"),
-         InlineKeyboardButton("📦 Mes Commandes & Suivi", callback_data="show_orders")],
-        [InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral"),
-         InlineKeyboardButton("⭐ Fidélité", callback_data="show_points")],
-        [InlineKeyboardButton("📏 Guide des Tailles", callback_data="size_guide"),
+         InlineKeyboardButton("👕 Filtrer par type d'article", callback_data="filter_type")],
+        [InlineKeyboardButton("📦 Mes Commandes & Suivi", callback_data="show_orders"),
+         InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral")],
+        [InlineKeyboardButton("⭐ Fidélité", callback_data="show_points"),
          InlineKeyboardButton(vip_btn_text, callback_data="toggle_vip_status")],
         [InlineKeyboardButton("🤝 Livraison Gares IDF", callback_data="click_and_collect_info"),
          InlineKeyboardButton("📦 Suivi de Colis", url=LAPOSTE_TRACKING_URL)],
@@ -451,7 +448,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  - 5 articles et + (> 130 €) : -20 €\n"
         "• Livraison Gares IDF (mains propres) : Forfait 5€, 10€ ou 15€ (fixe, sans poids).\n"
         "• Colissimo : Tarif calculé dynamiquement au gramme près (Gratuit dès 170€ d'achat) !\n\n"
-        "Ouvre la Web App ci-dessous ou utilise les boutons du menu !"
+        "Utilise les boutons du menu ci-dessous !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
 
@@ -466,7 +463,7 @@ async def admin_vendu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
     conn.commit()
     conn.close()
-    update_supabase_stock(item_id, False)  # Synchro Supabase
+    update_supabase_stock(item_id, False)
     await update.message.reply_text(f"🔒 L'article #{item_id} a été marqué comme vendu.")
 
 async def admin_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -480,7 +477,7 @@ async def admin_resto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (item_id,))
     conn.commit()
     conn.close()
-    update_supabase_stock(item_id, True)  # Synchro Supabase
+    update_supabase_stock(item_id, True)
     await update.message.reply_text(f"✅ L'article #{item_id} a été remis en stock !")
 
 async def admin_suivi(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -705,7 +702,7 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     cart_items = get_cart(user_id)
     if not cart_items:
         await query.edit_message_text(
-            "🛒 Ton panier est vide.\n\nAjoute des articles depuis le catalogue ou la Web App !",
+            "🛒 Ton panier est vide.\n\nAjoute des articles depuis le catalogue !",
             reply_markup=get_main_keyboard(user_id)
         )
         return
@@ -852,7 +849,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for item_id in cart_items:
             cursor.execute("UPDATE catalog SET available = 0 WHERE item_id = ?", (item_id,))
-            update_supabase_stock(item_id, False)  # Synchro Supabase stock vendu
+            update_supabase_stock(item_id, False)
         
         conn.commit()
         conn.close()
@@ -892,7 +889,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("UPDATE orders SET status = 'Annulé' WHERE order_id = ? AND user_id = ?", (order_id, user_id))
         for i_id in item_ids:
             cursor.execute("UPDATE catalog SET available = 1 WHERE item_id = ?", (i_id,))
-            update_supabase_stock(i_id, True)  # Synchro Supabase stock remis
+            update_supabase_stock(i_id, True)
         conn.commit()
         conn.close()
 
@@ -927,6 +924,45 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not found:
             text += "Aucun article disponible pour cette taille.\n\n"
         kb_rows.append([InlineKeyboardButton("🔍 Choisir une autre taille", callback_data="filter_size")])
+        kb_rows.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
+
+    elif query.data == "filter_type":
+        text = "👕 Filtrer par type d'article :\nSélectionne une catégorie :"
+        kb = [
+            [InlineKeyboardButton("Tee-Shirt", callback_data="type_tshirt"),
+             InlineKeyboardButton("Short", callback_data="type_short")],
+            [InlineKeyboardButton("Pull / Sweat", callback_data="type_pull"),
+             InlineKeyboardButton("Pantalon", callback_data="type_pantalon")],
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+        ]
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif query.data.startswith("type_"):
+        selected_type = query.data.split("_")[1]
+        type_keywords = {
+            "tshirt": ["tee-shirt", "t-shirt", "tee shirt"],
+            "short": ["short"],
+            "pull": ["pull", "sweat", "tech fleece", "aviateur"],
+            "pantalon": ["pantalon", "trousers"]
+        }
+        keywords = type_keywords.get(selected_type, [selected_type])
+        
+        text = f"🔥 ARTICLES DE TYPE : {selected_type.upper()} 🔥\n\n"
+        kb_rows = []
+        found = False
+        for item_id, data in catalog.items():
+            name_lower = data["name"].lower()
+            if any(kw in name_lower for kw in keywords):
+                found = True
+                if data["available"]:
+                    kb_rows.append([InlineKeyboardButton(f"➕ #{item_id} ({data['name']} - {data['prix']}€)", callback_data=f"addcart_{item_id}")])
+                    text += f"#{item_id} - {data['name']} | {data['taille']} | {data['etat']} | {data['prix']} €\n\n"
+                else:
+                    text += f"#{item_id} - {data['name']} (Vendu)\n\n"
+        if not found:
+            text += "Aucun article disponible pour ce type.\n\n"
+        kb_rows.append([InlineKeyboardButton("👕 Choisir un autre type", callback_data="filter_type")])
         kb_rows.append([InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")])
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb_rows))
 
@@ -965,17 +1001,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "show_points":
         text = f"⭐ PROGRAMME FIDÉLITÉ\n\nTu possèdes actuellement {u_data['points']} points fidélité.\nContinue tes achats pour gagner plus d'avantages !"
-        kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
-
-    elif query.data == "size_guide":
-        text = (
-            "📏 GUIDE DES TAILLES\n\n"
-            "• S : Idéal pour 1m60 - 1m70 (Coupe ajustée running)\n"
-            "• M : Idéal pour 1m70 - 1m80\n"
-            "• L : Idéal pour 1m80 - 1m90+\n\n"
-            "N'hésite pas à contacter le vendeur si tu as un doute !"
-        )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
@@ -1029,7 +1054,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 total_price = ord_row[2]
                 delivery_mode = ord_row[3]
             else:
-                items_summary = "Articles divers / WebApp"
+                items_summary = "Articles divers"
                 delivery_mode = "Standard"
 
             cursor.execute("UPDATE orders SET status = 'Validé' WHERE order_id = ?", (order_id,))
