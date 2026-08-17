@@ -140,6 +140,27 @@ def init_db():
             ("28", "Nike pants phenom elite gris", "L", "Excellent état 🟢 (Couleur : Gris)", 85, 250),
             ("29", "Nike pants trail noir", "S", "8/10 (petite égratignure sur le genou)", 60, 250),
             ("30", "Nike pants aeroswift", "M", "Excellent état 🟢 (Couleur : Noir)", 75, 250),
+            # Nouveautés série 31 à 40
+            ("31", "Pullover Nike Tech Kangourou", "S", "9/10 (Noir classique)", 75, 750),
+            ("32", "Ensemble Nike x Kelly Anna", "L", "10/10 (Multicolore)", 140, 800),
+            ("33", "Veste Nike Tech Fleece Aviateur", "L", "10/10 (Gris)", 75, 800),
+            ("34", "T-Shirt Nike Running", "M", "10/10 (Rouge)", 30, 150),
+            ("35", "T-Shirt Nike Running Technique", "M", "9/10 (Gris)", 30, 150),
+            ("36", "Veste Nike Chinese Dragon", "M", "9/10 (Bleu/violet)", 110, 700),
+            ("37", "T-Shirt Nike Running", "M", "8/10 (Bleu menthe)", 35, 150),
+            ("38", "T-Shirt Nike Trail", "M", "10/10 (Kaki)", 35, 150),
+            ("39", "T-Shirt Nike Trail Noir", "M", "10/10 (Noir)", 35, 150),
+            ("40", "T-Shirt Nike Running Division OS", "XL", "10/10 (Noir)", 45, 150),
+            # Nouveautés série 41 à 50 (Shorts)
+            ("41", "Short Nike Running", "M", "10/10 (Bleu roi)", 25, 200),
+            ("42", "Short Nike Running Division", "L", "10/10 (Gris / blanc motif)", 30, 200),
+            ("43", "Short Nike Running Rose", "M", "10/10 (Rose framboise)", 25, 200),
+            ("44", "Short Nike Running Nike Penché", "M", "10/10 (Noir)", 25, 200),
+            ("45", "Short Nike Running Nike Penché", "M", "10/10 (Bleu canard)", 25, 200),
+            ("46", "Short Nike Running Noir Cordons Jaunes", "M", "10/10 (Noir / jaune)", 25, 200),
+            ("47", "Short Nike Stride Dri-Fit", "S", "9/10 (Bleu marine)", 25, 200),
+            ("48", "Short Nike Running Noir", "L", "10/10 (Noir)", 25, 200),
+            ("49", "Short Nike Running Noir", "XS", "9/10 (Noir)", 25, 200),
         ]
         cursor.executemany("INSERT INTO catalog (item_id, name, taille, etat, prix, poids, available) VALUES (?, ?, ?, ?, ?, ?, 1)", default_items)
     
@@ -924,7 +945,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Taille S", callback_data="size_S"),
              InlineKeyboardButton("Taille M", callback_data="size_M")],
             [InlineKeyboardButton("Taille L", callback_data="size_L"),
-             InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
+             InlineKeyboardButton("Taille XL", callback_data="size_XL")],
+            [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
         ]
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
@@ -963,8 +985,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         type_keywords = {
             "tshirt": ["tee-shirt", "t-shirt", "tee shirt"],
             "short": ["short"],
-            "pull": ["pull", "sweat", "tech fleece", "aviateur", "ensemble"],
-            "pantalon": ["pantalon", "trousers"]
+            "pull": ["pull", "sweat", "tech fleece", "aviateur", "ensemble", "pullover", "veste"],
+            "pantalon": ["pantalon", "trousers", "pants"]
         }
         keywords = type_keywords.get(selected_type, [selected_type])
         
