@@ -349,6 +349,7 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
 
 known_users = set()
 delivery_choices = {}
+user_reward_choices = {} # Stocke le choix de réduction du client (ex: 350 ou 1000)
 
 async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
@@ -428,7 +429,7 @@ def get_main_keyboard(user_id):
          InlineKeyboardButton("👕 Filtrer par type d’article", callback_data="filter_type")],
         [InlineKeyboardButton("📦 Mes Commandes & Suivi", callback_data="show_orders"),
          InlineKeyboardButton("🤝 Parrainage (-5€)", callback_data="show_referral")],
-        [InlineKeyboardButton("⭐ Fidélité", callback_data="show_points"),
+        [InlineKeyboardButton("⭐ Fidélité & Réductions", callback_data="show_points"),
          InlineKeyboardButton(vip_btn_text, callback_data="toggle_vip_status")],
         [InlineKeyboardButton("🤝 Livraison Gares IDF", callback_data="click_and_collect_info"),
          InlineKeyboardButton("📦 Suivi de Colis", url=LAPOSTE_TRACKING_URL)],
@@ -460,13 +461,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_msg = (
         f"👋 Bienvenue {user.first_name} sur IDF Running Shop !\n\n"
         "Boutique indépendante streetwear & vêtements running. 🔥\n"
-        "• Remises dégressives par paliers :\n"
-        "  - 2 articles (> 70 €) : -5 €\n"
-        "  - 3 articles (> 90 €) : -10 €\n"
-        "  - 4 articles (> 110 €) : -15 €\n"
-        "  - 5 articles et + (> 130 €) : -20 €\n"
-        "• Livraison Gares IDF (mains propres) : Forfait 5€, 10€ ou 15€ (fixe, sans poids).\n"
-        "• Colissimo : Tarif calculé dynamiquement au gramme près (Gratuit dès 170€ d'achat) !\n\n"
+        "• Chaque euro dépensé se transforme en points de fidélité !\n"
+        "• Paliers de fidélité :\n"
+        "  - 350 points : -10 € sur l'article de ton choix\n"
+        "  - 1000 points : -50 € sur ta commande\n\n"
         "Utilise les boutons du menu ci-dessous !"
     )
     await update.message.reply_text(welcome_msg, reply_markup=get_main_keyboard(user.id))
@@ -756,21 +754,44 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     elif nb_items >= 5 and total > 130:
         discount = 20
 
-    final_total = max(0, total + shipping - discount)
+    # Application des réductions de fidélité
+    points_discount = 0
+    chosen_reward = user_reward_choices.get(user_id, 0)
+    if chosen_reward == 1000 and u_data["points"] >= 1000:
+        points_discount = 50
+    elif chosen_reward == 350 and u_data["points"] >= 350:
+        points_discount = 10
+
+    final_total = max(0, total + shipping - discount - points_discount)
 
     text += f"\n📦 Articles : {nb_items} | Sous-total : {total} €"
     text += f"\n🚚 Livraison ({current_delivery}) : +{shipping} €"
     if discount > 0:
-        text += f"\n🎁 Remise paliers : -{discount} €"
+        text += f"\n🎁 Remise paliers articles : -{discount} €"
+    if points_discount > 0:
+        text += f"\n⭐ Remise Fidélité activée : -{points_discount} €"
     text += f"\n\n💰 TOTAL FINAL : {final_total} €"
 
     kb = [
         [InlineKeyboardButton("🚆 Livraison Gares IDF", callback_data="set_del_gare_proche"),
          InlineKeyboardButton("📦 Colissimo", callback_data="set_del_colissimo")],
+    ]
+
+    # Boutons pour activer la fidélité dans le panier si les points suffisent
+    if u_data["points"] >= 350:
+        r_choice = user_reward_choices.get(user_id, 0)
+        btn_350_text = "☑️ Utiliser -10€ (350 pts)" if r_choice == 350 else "⭐ Utiliser -10€ (350 pts)"
+        kb.append([InlineKeyboardButton(btn_350_text, callback_data="use_reward_350")])
+    if u_data["points"] >= 1000:
+        r_choice = user_reward_choices.get(user_id, 0)
+        btn_1000_text = "☑️ Utiliser -50€ (1000 pts)" if r_choice == 1000 else "⭐ Utiliser -50€ (1000 pts)"
+        kb.append([InlineKeyboardButton(btn_1000_text, callback_data="use_reward_1000")])
+
+    kb.extend([
         [InlineKeyboardButton("✅ Valider et Passer la Commande", callback_data="checkout_cart")],
         [InlineKeyboardButton("🗑️ Vider le Panier", callback_data="clear_cart")],
         [InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]
-    ]
+    ])
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -819,10 +840,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Mode de livraison mis à jour.")
         await refresh_cart_display(query, user_id, u_data, catalog)
 
+    elif query.data == "use_reward_350":
+        if user_reward_choices.get(user_id) == 350:
+            user_reward_choices[user_id] = 0
+            await query.answer("Remise de -10€ désactivée.")
+        else:
+            user_reward_choices[user_id] = 350
+            await query.answer("Remise de -10€ activée !")
+        await refresh_cart_display(query, user_id, u_data, catalog)
+
+    elif query.data == "use_reward_1000":
+        if user_reward_choices.get(user_id) == 1000:
+            user_reward_choices[user_id] = 0
+            await query.answer("Remise de -50€ désactivée.")
+        else:
+            user_reward_choices[user_id] = 1000
+            await query.answer("Remise de -50€ activée !")
+        await refresh_cart_display(query, user_id, u_data, catalog)
+
     elif query.data == "clear_cart":
         clear_cart(user_id)
         if user_id in delivery_choices:
             del delivery_choices[user_id]
+        if user_id in user_reward_choices:
+            del user_reward_choices[user_id]
         await query.answer("🗑️ Panier vidé.", show_alert=True)
         await query.edit_message_text("🛒 Ton panier a été vidé.", reply_markup=get_main_keyboard(user_id))
 
@@ -855,7 +896,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif nb_items >= 5 and total > 130:
             discount = 20
 
-        final_total = max(0, total + shipping - discount)
+        points_discount = 0
+        chosen_reward = user_reward_choices.get(user_id, 0)
+        if chosen_reward == 1000 and u_data["points"] >= 1000:
+            points_discount = 50
+        elif chosen_reward == 350 and u_data["points"] >= 350:
+            points_discount = 10
+
+        final_total = max(0, total + shipping - discount - points_discount)
         items_names = ", ".join([catalog[i]['name'] for i in cart_items if i in catalog])
 
         conn = sqlite3.connect("shop.db")
@@ -1020,9 +1068,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == "show_points":
-        text = f"⭐ PROGRAMME FIDÉLITÉ\n\nTu possèdes actuellement {u_data['points']} points fidélité.\nContinue tes achats pour gagner plus d'avantages !"
+        text = (
+            f"⭐ PROGRAMME FIDÉLITÉ\n\n"
+            f"Tu possèdes actuellement **{u_data['points']} points**.\n\n"
+            f"Règles :\n"
+            f"• 1 € dépensé = 1 point gagné à chaque commande validée.\n"
+            f"• Dès 350 points : -10 € de réduction dans ton panier.\n"
+            f"• Dès 1000 points : -50 € de réduction dans ton panier.\n\n"
+            f"Une fois la réduction utilisée, tes points seront remis à zéro !"
+        )
         kb = [[InlineKeyboardButton("🔙 Menu Principal", callback_data="main_menu")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb))
+        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
     elif query.data == "toggle_vip_status":
         status = toggle_vip(user_id)
@@ -1081,8 +1137,24 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cursor.execute("SELECT username FROM users WHERE user_id = ?", (target_uid,))
             urow = cursor.fetchone()
             client_username = urow[0] if urow and urow[0] else "Client"
+
+            # Transformation des euros payés en points (1€ = 1 point) et gestion de la déduction si palier utilisé
+            earned_points = int(total_price)
+            chosen_reward = user_reward_choices.get(target_uid, 0)
+            
+            if chosen_reward == 1000:
+                cursor.execute("UPDATE users SET points = 0 + ? WHERE user_id = ?", (earned_points, target_uid))
+            elif chosen_reward == 350:
+                cursor.execute("UPDATE users SET points = points - 350 + ? WHERE user_id = ?", (earned_points, target_uid))
+            else:
+                cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (earned_points, target_uid))
+
             conn.commit()
             conn.close()
+
+            # Réinitialiser le choix de récompense de l'utilisateur après validation
+            if target_uid in user_reward_choices:
+                del user_reward_choices[target_uid]
 
             for jname in [f"reminder_{target_uid}_{order_id}", f"timeout_{target_uid}_{order_id}"]:
                 for job in context.job_queue.get_jobs_by_name(jname):
@@ -1092,7 +1164,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("✅ Paiement Validé & Facture envoyée", callback_data="noop")]
             ]))
             
-            await context.bot.send_message(chat_id=target_uid, text="✅ Paiement validé avec succès ! Ta commande est en cours de préparation pour l'expédition.")
+            await context.bot.send_message(chat_id=target_uid, text=f"✅ Paiement validé avec succès ! Tu as gagné {earned_points} points fidélité. Ta commande est en cours de préparation.")
             
             pdf_buffer = generate_invoice_pdf(order_id, client_username, target_uid, items_summary, delivery_mode, total_price)
             await context.bot.send_document(
@@ -1102,7 +1174,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 caption="📄 Voici la facture officielle de ta commande."
             )
             
-            add_points(target_uid, 10)
             ref_id = give_referral_reward(target_uid)
             if ref_id:
                 try:
@@ -1143,4 +1214,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
