@@ -110,16 +110,16 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM catalog")
     if cursor.fetchone()[0] == 0:
         default_items = [
-            ("1", "SWEAT NIKE TECH FLEECE", "S", "Excellent état", 70, 850),
-            ("2", "PANTALON NIKE TRAIL", "S", "8/10 (petite égratignure sur le genou)", 60, 250),
-            ("3", "PANTALON NIKE PHENOM ELITE", "L", "Excellent état", 90, 250),
-            ("4", "PANTALON NIKE AEROSWIFT", "M", "Excellent état", 75, 250),
-            ("5", "TEE-SHIRT NIKE DRI-FIT", "M", "Excellent état", 30, 150),
-            ("6", "PANTALON NIKE PHENOM ELITE POCHE NOIR", "S", "8/10", 80, 250),
-            ("7", "PANTALON NIKE PHENOM ELITE", "S", "Excellent état", 90, 250),
-            ("8", "SWEAT NIKE TECH AVIATEUR V1", "M", "Excellent état", 60, 800),
-            ("9", "TEE-SHIRT NIKE RUNNING DIVISION", "M", "Excellent état", 35, 150),
-            ("10", "TEE-SHIRT NIKE TRAIL", "S", "Excellent état", 40, 150),
+            ("1", "PANTALON NIKE TRAIL", "S", "8/10 (petite égratignure sur le genou)", 60, 250),
+            ("2", "SWEAT NIKE TECH AVIATEUR V1", "M", "Excellent état", 60, 800),
+            ("3", "TEE-SHIRT NIKE DRI-FIT", "M", "Excellent état", 30, 150),
+            ("4", "SWEAT NIKE TECH FLEECE", "S", "Excellent état", 70, 850),
+            ("5", "PANTALON NIKE PHENOM ELITE POCHE NOIR", "S", "8/10", 80, 250),
+            ("6", "TEE-SHIRT NIKE TRAIL", "S", "Excellent état", 40, 150),
+            ("7", "TEE-SHIRT NIKE RUNNING DIVISION", "M", "Excellent état", 35, 150),
+            ("8", "PANTALON NIKE AEROSWIFT", "M", "Excellent état", 75, 250),
+            ("9", "PANTALON NIKE PHENOM ELITE", "L", "Excellent état", 90, 250),
+            ("10", "PANTALON NIKE PHENOM ELITE", "S", "Excellent état", 90, 250),
             ("11", "PULLOVER NIKE TECH KANGOUROU", "S", "9/10", 75, 750),
             ("12", "VESTE NIKE TECH FLEECE AVIATEUR", "L", "10/10", 75, 800),
             ("13", "ENSEMBLE NIKE X KELLY ANNA", "L", "10/10", 140, 800),
@@ -349,7 +349,7 @@ def generate_invoice_pdf(order_id, client_name, client_id, items_str, delivery_m
 
 known_users = set()
 delivery_choices = {}
-user_reward_choices = {} # Stocke le choix de réduction du client (ex: 350 ou 1000)
+user_reward_choices = {}
 
 async def payment_timeout_job(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
@@ -754,7 +754,6 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
     elif nb_items >= 5 and total > 130:
         discount = 20
 
-    # Application des réductions de fidélité
     points_discount = 0
     chosen_reward = user_reward_choices.get(user_id, 0)
     if chosen_reward == 1000 and u_data["points"] >= 1000:
@@ -777,7 +776,6 @@ async def refresh_cart_display(query, user_id, u_data, catalog):
          InlineKeyboardButton("📦 Colissimo", callback_data="set_del_colissimo")],
     ]
 
-    # Boutons pour activer la fidélité dans le panier si les points suffisent
     if u_data["points"] >= 350:
         r_choice = user_reward_choices.get(user_id, 0)
         btn_350_text = "☑️ Utiliser -10€ (350 pts)" if r_choice == 350 else "⭐ Utiliser -10€ (350 pts)"
@@ -1138,7 +1136,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             urow = cursor.fetchone()
             client_username = urow[0] if urow and urow[0] else "Client"
 
-            # Transformation des euros payés en points (1€ = 1 point) et gestion de la déduction si palier utilisé
             earned_points = int(total_price)
             chosen_reward = user_reward_choices.get(target_uid, 0)
             
@@ -1152,7 +1149,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
             conn.close()
 
-            # Réinitialiser le choix de récompense de l'utilisateur après validation
             if target_uid in user_reward_choices:
                 del user_reward_choices[target_uid]
 
@@ -1214,3 +1210,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
